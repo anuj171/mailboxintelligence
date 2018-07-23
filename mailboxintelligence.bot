@@ -1,0 +1,15 @@
+{
+    "name": "Luis",
+    "description": "",
+    "secretKey": "",
+    "services": [
+        {
+            "id": "13d815e0-8e4b-11e8-9ab1-359878b50cfb",
+            "name": "http://localhost:3979/api/messages",
+            "type": "endpoint",
+            "appId": "",
+            "appPassword": "",
+            "endpoint": "http://localhost:3979/api/messages"
+        }
+    ]
+}

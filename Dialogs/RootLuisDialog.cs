@@ -23,10 +23,72 @@
 
         // private IList<string> titleOptions = new List<string> { "“Very stylish, great stay, great staff”", "“good hotel awful meals”", "“Need more attention to little things”", "“Lovely small hotel ideally situated to explore the area.”", "“Positive surprise”", "“Beautiful suite and resort”" };
 
+        private static int sCurrentDialogID = 0;
+        private static Dictionary<int, string> sDialogIdToCodeMap = new Dictionary<int, string>();
+        private static string sLoginUrl = @"https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send&state={0}";
+        private int DialogId;
+
+        internal static void UpdateCode(string code)
+        {
+            sDialogIdToCodeMap[sCurrentDialogID] = code;
+        }
+
+
+        internal bool IsSignedIn {
+            get
+            {
+                if (sDialogIdToCodeMap.ContainsKey(this.DialogId))
+                {
+                    return !String.IsNullOrEmpty(sDialogIdToCodeMap[this.DialogId]);
+                }
+
+                return false;
+            }
+        }
+
+        internal string Code
+        {
+            get
+            {
+                if (sDialogIdToCodeMap.ContainsKey(this.DialogId))
+                {
+                    return sDialogIdToCodeMap[this.DialogId];
+                }
+
+                return "";
+            }
+        }
+
+        internal RootLuisDialog()
+        {
+            this.DialogId = ++sCurrentDialogID;
+        }
+
+        private bool CheckSignin(IDialogContext context, LuisResult result)
+        {
+            if (!IsSignedIn)
+            {
+                var card = SigninCard.Create("Please Sign In To Continue...", "Sign In", String.Format(sLoginUrl, DialogId));
+
+                var resultMessage = context.MakeMessage();
+                resultMessage.Attachments.Add(card.ToAttachment());
+                context.PostAsync(resultMessage);
+                return false;
+            }
+
+            return true;
+        }
+
+
         [LuisIntent("")]
         [LuisIntent("None")]
         public async Task None(IDialogContext context, LuisResult result)
         {
+            if (!CheckSignin(context, result))
+            {
+                return;
+            }
+
             string message = $"Sorry, I did not understand '{result.Query}'. Type 'help' if you need assistance.";
 
             await context.PostAsync(message);
@@ -37,9 +99,13 @@
         [LuisIntent("Communication.FindEmail")]
         public async Task Search(IDialogContext context, IAwaitable<IMessageActivity> activity, LuisResult result)
         {
+            if (!CheckSignin(context, result))
+            {
+                return;
+            }
+
             var message = await activity;
             await context.PostAsync($"Searching your mail for '{message.Text}'...");
-
             //var hotelsQuery = new HotelsQuery();
 
             //EntityRecommendation cityEntityRecommendation;
@@ -92,6 +158,11 @@
         [LuisIntent("Communication.Confirm")]
         public async Task Confirm(IDialogContext context, LuisResult result)
         {
+            if (!CheckSignin(context, result))
+            {
+                return;
+            }
+
             await context.PostAsync("Confirming the option.");
 
             context.Wait(this.MessageReceived);
@@ -100,6 +171,11 @@
         [LuisIntent("Communication.Reject")]
         public async Task Reject(IDialogContext context, LuisResult result)
         {
+            if (!CheckSignin(context, result))
+            {
+                return;
+            }
+
             await context.PostAsync("Ok rejecting the option.");
 
             context.Wait(this.MessageReceived);
@@ -108,6 +184,11 @@
         [LuisIntent("Communication.SendEmail")]
         public async Task SendEmail(IDialogContext context, LuisResult result)
         {
+            if (!CheckSignin(context, result))
+            {
+                return;
+            }
+
             await context.PostAsync("Send Email To:");
 
             context.Wait(this.MessageReceived);
@@ -116,6 +197,11 @@
         [LuisIntent("Communication.StartOver")]
         public async Task StartOver(IDialogContext context, LuisResult result)
         {
+            if (!CheckSignin(context, result))
+            {
+                return;
+            }
+
             await context.PostAsync("Type 'help' if you need assistance.");
 
             context.Wait(this.MessageReceived);
@@ -124,6 +210,11 @@
         [LuisIntent("Help")]
         public async Task Help(IDialogContext context, LuisResult result)
         {
+            if (!CheckSignin(context, result))
+            {
+                return;
+            }
+
             await context.PostAsync("Hello! Try asking me things like 'search email sent by Rahul yesterday' or 'find mail I sent to the team last week'");
 
             context.Wait(this.MessageReceived);

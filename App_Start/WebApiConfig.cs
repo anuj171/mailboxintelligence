@@ -28,6 +28,10 @@
                 name: "DefaultApi",
                 routeTemplate: "api/{controller}/{id}",
                 defaults: new { id = RouteParameter.Optional });
+
+            //config.Routes.MapHttpRoute(
+            //    name: "OAUth",
+            //    routeTemplate: "api/OAuthController");
         }
     }
 }

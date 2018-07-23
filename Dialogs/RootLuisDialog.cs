@@ -3,13 +3,17 @@
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Net.Http;
+    using System.Net.Http.Headers;
     using System.Threading.Tasks;
     using System.Web;
+    using Graph.Models;
     using Microsoft.Bot.Builder.Dialogs;
     using Microsoft.Bot.Builder.FormFlow;
     using Microsoft.Bot.Builder.Luis;
     using Microsoft.Bot.Builder.Luis.Models;
     using Microsoft.Bot.Connector;
+    using Newtonsoft.Json.Linq;
 
     [LuisModel("493b6434-b844-4487-8d38-09d1319673f2", "6c18e9d8d7164409b9ffefba1a431416")]
     [Serializable]
@@ -25,12 +29,16 @@
 
         private static int sCurrentDialogID = 0;
         private static Dictionary<int, string> sDialogIdToCodeMap = new Dictionary<int, string>();
-        private static string sLoginUrl = @"https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send&state={0}";
+        //private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send&state={0}";
+        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&response_mode=query&response_type=code&scope=openid+email+profile+offline_access+User.Read+Mail.Send+Files.ReadWrite&state=OpenIdConnect.AuthenticationProperties%3dD-8-jBvr2n33UT_8vyZDmK2_1T4FklmPrZmIWDu8wBtxA9ubbpC_em96Ts4Ux0Z-UVsM_SMe-baNHDB07fTOD0SKdk76vM1Yfwc7TxPBtMnlcLn7U0Ezz0FXZ7K_Y9p_bajp1hHroeLCpaZ7Ez-uSUcqy6VY6k-4rE5AWi-s2WThgcJbdzQRgB3ZDF8IoaJHIRCWApJGkhjG5dQLj8MVYr4ddHzXPqVYRaHxeg280_4&nonce=636679635043805679.YjI1NmQxNGMtMGUwYS00ZjQwLTkxYzYtYmYzNDUzYjIzMTkzYTcyMjAzZDItNzQ5YS00YTFmLWFkYmMtYmM1OGUwOTc3YTY2";
+        //private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?response_mode=query&client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=token&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&scope=openid%20profile%20User.ReadWrite%20User.ReadBasic.All%20Mail.ReadWrite";
         private int DialogId;
 
-        internal static void UpdateCode(string code)
+        private GraphService Service =  new GraphService();
+
+        internal static void UpdateCodeAsync(string code)
         {
-            sDialogIdToCodeMap[sCurrentDialogID] = code;
+            sDialogIdToCodeMap.Add(sCurrentDialogID, code);
         }
 
 
@@ -46,18 +54,14 @@
             }
         }
 
-        internal string Code
-        {
+        internal string Code {
             get
             {
-                if (sDialogIdToCodeMap.ContainsKey(this.DialogId))
-                {
-                    return sDialogIdToCodeMap[this.DialogId];
-                }
-
-                return "";
+                return sDialogIdToCodeMap[this.DialogId];
             }
         }
+
+        internal string UserName { get; set; }
 
         internal RootLuisDialog()
         {
@@ -215,7 +219,13 @@
                 return;
             }
 
-            await context.PostAsync("Hello! Try asking me things like 'search email sent by Rahul yesterday' or 'find mail I sent to the team last week'");
+            if (this.UserName == null)
+            {
+                this.UserName = "";
+                this.UserName = await Service.GetMyEmailAddress(this.Code);
+            }
+
+            await context.PostAsync($"Hello {this.UserName}! Try asking me things like 'search email sent by Rahul yesterday' or 'find mail I sent to the team last week'");
 
             context.Wait(this.MessageReceived);
         }

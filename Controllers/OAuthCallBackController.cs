@@ -20,24 +20,25 @@ namespace LuisBot
 
             if (!String.IsNullOrEmpty(code))
             {
-                RootLuisDialog.UpdateCode(code);
+                RootLuisDialog.UpdateCodeAsync(code);
                 return "You are Signed In!";
             }
 
             return "Sign-in Failed!";
         }
 
-    
+
         //// GET api/<controller>/5
         //public string Get(int id)
         //{
         //    return "value";
         //}
 
-        //// POST api/<controller>
-        //public void Post([FromBody]string value)
-        //{
-        //}
+        // POST api/<controller>
+        [HttpPost]
+        public void Post([FromBody]string value)
+        {
+        }
 
         //// PUT api/<controller>/5
         //public void Put(int id, [FromBody]string value)

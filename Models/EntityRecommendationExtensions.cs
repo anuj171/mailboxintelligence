@@ -63,8 +63,8 @@
                 if (values != null)
                 {
                     range = new Range();
-                    range.Start = values["start"].ToString();
-                    range.End = values["end"].ToString();
+                    if (values.ContainsKey("start")) range.Start = values["start"].ToString();
+                    if(values.ContainsKey("end"))  range.End = values["end"].ToString();
                 }
                 return true;
             }

@@ -244,10 +244,22 @@ namespace Graph.Models
 
         public List<Message> searchMails(string accessToken, SearchQuery query )
         {
-            string queryString = (String.IsNullOrEmpty(query.TimeStart) ? "receivedDateTime ge 2000-01-01" : "receivedDateTime ge " + query.TimeStart);
-            queryString += (String.IsNullOrEmpty(query.TimeEnd) ? "" : " and receivedDateTime lt " + query.TimeEnd);
-            queryString += (String.IsNullOrEmpty(query.Content) ? "" : " and subject eq '" + query.Content + "'");
+            string queryString = string.Empty;
+            if (String.IsNullOrEmpty(query.Date))
+            {
+                queryString = (String.IsNullOrEmpty(query.TimeStart) ? "receivedDateTime ge 2000-01-01" : "receivedDateTime ge " + query.TimeStart);
+                queryString += (String.IsNullOrEmpty(query.TimeEnd) ? "" : " and receivedDateTime lt " + query.TimeEnd);
+
+            }
+            else
+            {
+                queryString += "receivedDateTime gt " + ((DateTime.Parse(query.Date)).AddDays(-1)).ToString("yyyy-MM-dd");
+                queryString += " and receivedDateTime lt " +((DateTime.Parse(query.Date)).AddDays(1)).ToString("yyyy-MM-dd");
+                //queryString = "receivedDateTime eq '" + query.Date + "'";
+            }
             queryString += (String.IsNullOrEmpty(query.From) ? "" : " and from/emailAddress/address eq '" + query.From+ "'");
+            queryString += (String.IsNullOrEmpty(query.Content) ? "" : " and subject eq '" + query.Content + "'");
+            
 
             GraphServiceClient client = new GraphServiceClient(
                 new DelegateAuthenticationProvider(
@@ -267,7 +279,7 @@ namespace Graph.Models
                                     .Filter(queryString)
 
                                     .Select("subject,receivedDateTime,from,body")
-                                    .Top(100)
+                                    .Top(5)
                                     .GetAsync().GetAwaiter().GetResult().CurrentPage.ToList<Microsoft.Graph.Message>();
                 mailResults = responseData.Select(e => new Message { Subject = e.Subject, Body = new ItemBody { Content = e.Body.Content, ContentType = e.Body.ContentType.ToString()} }).ToList<Message>();
                

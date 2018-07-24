@@ -179,11 +179,21 @@
                 return;
             }
 
-            var message = await activity;
-
             SearchQuery query = GetQueryFromResult(result);
 
+            string reply;
+            if (query.IsEmpty())
+            {
+                reply = $"Sorry, I did not understand '{result.Query}'. Please be more specific.";
+            }
+            else
+            {
+                reply = $"Searching for: '{query.ToString()}'";
+            }
 
+            await context.PostAsync(reply);
+
+            context.Wait(this.MessageReceived);
         }
 
         SearchQuery GetQueryFromResult(LuisResult result)

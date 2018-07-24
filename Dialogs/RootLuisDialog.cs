@@ -40,7 +40,7 @@
 
         private static int sCurrentDialogID = 0;
         private static Dictionary<int, string> sDialogIdToCodeMap = new Dictionary<int, string>();
-        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send&state={0}";
+        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send%20People.Read&state={0}";
         private static string sPostBody = "grant_type=authorization_code&client_id=9cd99965-da20-4039-8e68-510d35bee7e2&code={0}&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&resource=https%3A%2F%2Fgraph.microsoft.com%2F&client_secret={1}";
         private static string sPostUrl = "https://login.microsoftonline.com/common/oauth2/token";
         private static string sClientSecret = "nlgKLCM17536*%fonsCFT*#";
@@ -337,6 +337,21 @@
             context.Wait(this.MessageReceived);
         }
 
+        public class UserEmailAddress
+        {
+            [JsonProperty("@odata.etag")]
+            public string etag { get; set; }
+            public string userPrincipalName { get; set; }
+            public string displayName { get; set; }
+        }
+
+        public class RootObject
+        {
+            [JsonProperty("@odata.context")]
+            public string context { get; set; }
+            public List<UserEmailAddress> value { get; set; }
+        }
+
         [LuisIntent("Communication.SendEmail")]
         public async Task SendEmail(IDialogContext context, LuisResult result)
         {
@@ -345,9 +360,51 @@
                 return;
             }
 
-            await context.PostAsync("Send Email To:");
+            var toekn = this.Token;
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", toekn);
+            var name = result.Entities[0].Entity;
+            var url = "https://graph.microsoft.com/beta/me/people?$search=" + name + "&$select=userPrincipalName,displayName";
+            var jsonResponse = await client.GetStringAsync(url);
 
+            var value = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
+            List<UserEmailAddress> emailList = value.value;
+            List<CardAction> Go = new List<CardAction>();
+            foreach (var obj in emailList)
+            {
+
+                CardAction Actioncard = new CardAction()
+                {
+                    Type =  ActionTypes.ImBack,
+                    Title = obj.userPrincipalName,
+                    Text = obj.displayName,
+                    Value = obj.userPrincipalName
+
+                };
+
+                Go.Add(Actioncard);
+            }
+
+            HeroCard card = new HeroCard { Title = "Below Email ID found. Please choose whom to send Email", Buttons = Go };
+            var message = context.MakeMessage();
+            message.Attachments.Add(card.ToAttachment());
+            await context.PostAsync(message);
+            context.Wait(this.SendMailOnSelectedMail);
+        }
+
+        protected async Task SendMailOnSelectedMail(IDialogContext context, IAwaitable<object> result)
+        {
+            var message = await result as IMessageActivity;
+
+            GraphService emailService = new GraphService();
+            MessageRequest emailMessageRequest = await emailService.BuildEmailMessage(Token, message.Text, "Test Mail from bot app");
+
+
+            string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
+            await context.PostAsync(resultMessage);
             context.Wait(this.MessageReceived);
+            context.Done(new object());
         }
 
         [LuisIntent("Communication.StartOver")]

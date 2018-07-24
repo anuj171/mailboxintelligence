@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Configuration;
     using System.Linq;
     using System.Net.Http;
     using System.Net.Http.Headers;
@@ -36,15 +37,17 @@
         private const string DateTimeRange = "builtin.datetimeV2.datetimerange";
         private const string Email = "email";
 
-        private const string sHostName = "localhost:3979";
         private static int sCurrentDialogID = 0;
         private static Dictionary<int, string> sDialogIdToCodeMap = new Dictionary<int, string>();
-        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=code&redirect_uri=http%3A%2F%2F{1}%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send&state={0}";
-        private static string sPostBody = "grant_type=authorization_code&client_id=9cd99965-da20-4039-8e68-510d35bee7e2&code={0}&redirect_uri=http%3A%2F%2F{2}%2Fapi%2FOAuthCallBack&resource=https%3A%2F%2Fgraph.microsoft.com%2F&client_secret={1}";
+        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={2}&response_type=code&redirect_uri={1}%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send&state={0}";
+        private static string sPostBody = "grant_type=authorization_code&client_id={3}&code={0}&redirect_uri={2}%2Fapi%2FOAuthCallBack&resource=https%3A%2F%2Fgraph.microsoft.com%2F&client_secret={1}";
         private static string sPostUrl = "https://login.microsoftonline.com/common/oauth2/token";
-        private static string sClientSecret = "nlgKLCM17536*%fonsCFT*#";
 
-        private int DialogId;
+        private string Host = ConfigurationManager.AppSettings["Host"];
+        private string ClientId = ConfigurationManager.AppSettings["MicrosoftAppId"];
+        private string AppSecret = ConfigurationManager.AppSettings["MicrosoftAppPassword"];
+
+        private int DialogId = 0;
 
         private GraphService Service =  new GraphService();
 
@@ -96,7 +99,7 @@
                 {
                     request.Headers.Add("Host", "login.microsoftonline.com");
 
-                    string content = String.Format(sPostBody, this.Code, Uri.EscapeDataString(sClientSecret), Uri.EscapeDataString(sHostName));
+                    string content = String.Format(sPostBody, this.Code, Uri.EscapeDataString(this.AppSecret), Uri.EscapeDataString(this.Host), this.ClientId);
 
                     request.Content = new StringContent(content, Encoding.UTF8, "application/x-www-form-urlencoded");
 
@@ -118,7 +121,19 @@
         {
             if (!IsSignedIn)
             {
-                var card = SigninCard.Create("Please Sign In To Continue...", "Sign In", String.Format(sLoginUrl, DialogId, Uri.EscapeDataString(sHostName)));
+                CardAction signInAction = new CardAction()
+                {
+                    Type = "openUrl",
+                    Title = "Sign In",
+                    Value = String.Format(sLoginUrl, DialogId, Uri.EscapeDataString(this.Host), this.ClientId)
+                };
+
+                HeroCard card = new HeroCard()
+                {
+                    Title = "Sign In",
+                    Subtitle = "Tap/Click here to Sign In...",                    
+                    Tap = signInAction
+                };
 
                 var resultMessage = context.MakeMessage();
                 resultMessage.Attachments.Add(card.ToAttachment());

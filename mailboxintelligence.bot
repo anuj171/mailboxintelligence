@@ -1,15 +1,15 @@
 {
-    "name": "Luis",
+    "name": "mailboxintelligence",
     "description": "",
     "secretKey": "",
     "services": [
         {
-            "id": "13d815e0-8e4b-11e8-9ab1-359878b50cfb",
-            "name": "http://localhost:3979/api/messages",
+            "appId": "9cd99965-da20-4039-8e68-510d35bee7e2",
+            "id": "0838bcf0-8f4d-11e8-9ed5-bf944c899dc8",
             "type": "endpoint",
-            "appId": "",
-            "appPassword": "",
-            "endpoint": "http://localhost:3979/api/messages"
+            "appPassword": "nlgKLCM17536*%fonsCFT*#",
+            "endpoint": "http://localhost:3979/api/messages",
+            "name": "http://localhost:3979/api/messages"
         }
     ]
 }

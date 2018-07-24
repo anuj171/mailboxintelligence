@@ -53,9 +53,11 @@
 
         internal static void UpdateCodeAsync(string code)
         {
-            sDialogIdToCodeMap.Add(sCurrentDialogID, code);
+            if (!sDialogIdToCodeMap.ContainsKey(sCurrentDialogID))
+            {
+                sDialogIdToCodeMap.Add(sCurrentDialogID, code);
+            }
         }
-
 
         internal bool IsSignedIn {
             get
@@ -206,11 +208,21 @@
             {
                 reply = $"Searching for: '{query.ToString()}'";
             }
-             IList<Message> mails = Service.searchMails(Token, query);
+
+            await context.PostAsync(reply);
+
+            IList<Message> mails = new List<Message>();
+            try
+            {
+                mails = Service.searchMails(Token, query);
+            }
+            catch (Exception e)
+            {
+                await context.PostAsync(e.Message);
+                await context.PostAsync(e.StackTrace);
+            }
 
             await PublishCards(context, mails);
-
-            //await context.PostAsync(reply);
 
             //context.Wait(this.MessageReceived);
         }

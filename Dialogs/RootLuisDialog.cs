@@ -192,10 +192,31 @@
             }
              IList<Message> mails = Service.searchMails(Token, query);
 
-            await context.PostAsync(reply);
+            await PublishCards(context, mails);
+
+            //await context.PostAsync(reply);
 
             context.Wait(this.MessageReceived);
         }
+
+        public async Task PublishCards(IDialogContext context, IList<Message> msgs)
+        {
+            var resultMessage = context.MakeMessage();
+            resultMessage.AttachmentLayout = AttachmentLayoutTypes.Carousel;
+            resultMessage.Attachments = new List<Microsoft.Bot.Connector.Attachment>();
+            foreach (Message msg in msgs)
+            {
+                ThumbnailCard thumbnailCard = new ThumbnailCard()
+                {
+                    Title = msg.Subject,
+                    Text = msg.Body.Content.ToString(),
+                };
+
+                resultMessage.Attachments.Add(thumbnailCard.ToAttachment());
+            }
+            await context.PostAsync(resultMessage);
+        }
+
 
         SearchQuery GetQueryFromResult(LuisResult result)
         {

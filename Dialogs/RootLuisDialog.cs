@@ -179,11 +179,22 @@
                 return;
             }
 
-            var message = await activity;
-
             SearchQuery query = GetQueryFromResult(result);
-            IList<Message> mails = Service.searchMails(Token, query);
 
+            string reply;
+            if (query.IsEmpty())
+            {
+                reply = $"Sorry, I did not understand '{result.Query}'. Please be more specific.";
+            }
+            else
+            {
+                reply = $"Searching for: '{query.ToString()}'";
+            }
+             IList<Message> mails = Service.searchMails(Token, query);
+
+            await context.PostAsync(reply);
+
+            context.Wait(this.MessageReceived);
         }
 
         SearchQuery GetQueryFromResult(LuisResult result)
@@ -205,9 +216,23 @@
                 query.From = recommendation.Entity;
             }
 
+            if (result.TryFindEntity(Email, out recommendation))
+            {
+                if (String.IsNullOrEmpty(query.From))
+                {
+                    query.From = recommendation.Entity;
+                }
+            }
+
             if (result.TryFindEntity(To, out recommendation))
             {
                 query.To = recommendation.Entity;
+
+                if (query.To.Equals("me", StringComparison.InvariantCultureIgnoreCase) ||
+                    query.To.Equals("myself", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    query.To = this.UserName;
+                }
             }
 
             if (result.TryFindEntity(Date, out recommendation) || result.TryFindEntity(DateTime, out recommendation))
@@ -215,8 +240,7 @@
                 string dateStr = "";
                 EntityRecommendationExtensions.TryGetValue(recommendation, out dateStr);
 
-                query.TimeStart = dateStr;
-                query.TimeEnd = dateStr;
+                query.Date = dateStr;
             }
 
             if (result.TryFindEntity(DateRange, out recommendation) || result.TryFindEntity(DateTimeRange, out recommendation))

@@ -19,6 +19,48 @@ namespace Graph.Models
         public string To { get; set; }
         public string TimeStart { get; set; }
         public string TimeEnd { get; set; }
+        public string Date { get; set; }
+
+        public bool IsEmpty()
+        {
+            return String.IsNullOrEmpty(Content) &&
+                String.IsNullOrEmpty(From) &&
+                String.IsNullOrEmpty(To) &&
+                String.IsNullOrEmpty(TimeStart) &&
+                String.IsNullOrEmpty(TimeEnd) &&
+                String.IsNullOrEmpty(Date); 
+        }
+
+        public override string ToString()
+        {
+            string query = "";
+            if (!String.IsNullOrEmpty(Content))
+            {
+                query += "QueryString: " + Content + "  ";
+            }
+            if (!String.IsNullOrEmpty(From))
+            {
+                query += "From: " + From + "  ";
+            }
+            if (!String.IsNullOrEmpty(To))
+            {
+                query += "To: " + To + "  ";
+            }
+            if (!String.IsNullOrEmpty(TimeStart))
+            {
+                query += "TimeStart: " + TimeStart + "  ";
+            }
+            if (!String.IsNullOrEmpty(TimeEnd))
+            {
+                query += "TimeEnd: " + TimeEnd + "  ";
+            }
+            if (!String.IsNullOrEmpty(Date))
+            {
+                query += "Date: " + Date + "  ";
+            }
+
+            return query;
+        }
     }
 
     public class FileInfo

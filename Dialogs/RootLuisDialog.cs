@@ -78,6 +78,8 @@
 
         internal string Token { get; set; }
 
+        internal string ForwardMessageBody { get; set; }
+
         internal RootLuisDialog()
         {
             this.DialogId = ++sCurrentDialogID;
@@ -196,11 +198,12 @@
 
             //await context.PostAsync(reply);
 
-            context.Wait(this.MessageReceived);
+            //context.Wait(this.MessageReceived);
         }
 
         public async Task PublishCards(IDialogContext context, IList<Message> msgs)
         {
+ /*
             var resultMessage = context.MakeMessage();
             resultMessage.AttachmentLayout = AttachmentLayoutTypes.Carousel;
             resultMessage.Attachments = new List<Microsoft.Bot.Connector.Attachment>();
@@ -215,10 +218,48 @@
                 resultMessage.Attachments.Add(thumbnailCard.ToAttachment());
             }
             await context.PostAsync(resultMessage);
+ */
+
+            List<CardAction> Go = new List<CardAction>();
+            var i = 0;
+            foreach (var obj in msgs)
+            {
+                i++;
+                CardAction Actioncard = new CardAction()
+                {
+                    Type = ActionTypes.ImBack,
+                    Title = obj.Subject,
+                    Text = obj.Subject,
+                    Value = obj.Body.Content.ToString()
+
+                };
+
+                Go.Add(Actioncard);
+                if(i == 5)
+                {
+                    //Displayin only 5 Email
+                    break;
+                }
+            }
+
+            HeroCard card = new HeroCard { Title = "Below Email found.", Buttons = Go };
+            var message = context.MakeMessage();
+            message.Attachments.Add(card.ToAttachment());
+            await context.PostAsync(message);
+            context.Wait(this.SelectedMail);
         }
 
+        protected async Task SelectedMail(IDialogContext context, IAwaitable<object> result)
+        {
+            var message = await result as IMessageActivity;
+            this.ForwardMessageBody = message.Text;
 
-        SearchQuery GetQueryFromResult(LuisResult result)
+            await context.PostAsync("Whom you want to send selected mail ");
+            context.Wait(this.MessageReceived);
+            context.Done(new object());
+        }
+
+            SearchQuery GetQueryFromResult(LuisResult result)
         {
             SearchQuery query = new SearchQuery();
             EntityRecommendation recommendation;
@@ -398,7 +439,16 @@
             var message = await result as IMessageActivity;
 
             GraphService emailService = new GraphService();
-            MessageRequest emailMessageRequest = await emailService.BuildEmailMessage(Token, message.Text, "Test Mail from bot app");
+            MessageRequest emailMessageRequest = new MessageRequest();
+            if (String.IsNullOrEmpty(this.ForwardMessageBody))
+            {
+                emailMessageRequest = await emailService.BuildEmailMessage(Token, message.Text, "Test Mail from bot app");
+            }
+            else
+            {
+                emailMessageRequest = await emailService.BuildEmailMessageUsingBody(Token, message.Text, "Test Mail from bot app", this.ForwardMessageBody);
+                this.ForwardMessageBody = "";
+            }
 
 
             string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);

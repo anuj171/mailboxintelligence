@@ -5,6 +5,8 @@
     using System.Linq;
     using System.Net.Http;
     using System.Net.Http.Headers;
+    using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
     using System.Web;
     using Graph.Models;
@@ -13,6 +15,7 @@
     using Microsoft.Bot.Builder.Luis;
     using Microsoft.Bot.Builder.Luis.Models;
     using Microsoft.Bot.Connector;
+    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
     [LuisModel("493b6434-b844-4487-8d38-09d1319673f2", "6c18e9d8d7164409b9ffefba1a431416")]
@@ -29,9 +32,11 @@
 
         private static int sCurrentDialogID = 0;
         private static Dictionary<int, string> sDialogIdToCodeMap = new Dictionary<int, string>();
-        //private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send&state={0}";
-        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&response_mode=query&response_type=code&scope=openid+email+profile+offline_access+User.Read+Mail.Send+Files.ReadWrite&state=OpenIdConnect.AuthenticationProperties%3dD-8-jBvr2n33UT_8vyZDmK2_1T4FklmPrZmIWDu8wBtxA9ubbpC_em96Ts4Ux0Z-UVsM_SMe-baNHDB07fTOD0SKdk76vM1Yfwc7TxPBtMnlcLn7U0Ezz0FXZ7K_Y9p_bajp1hHroeLCpaZ7Ez-uSUcqy6VY6k-4rE5AWi-s2WThgcJbdzQRgB3ZDF8IoaJHIRCWApJGkhjG5dQLj8MVYr4ddHzXPqVYRaHxeg280_4&nonce=636679635043805679.YjI1NmQxNGMtMGUwYS00ZjQwLTkxYzYtYmYzNDUzYjIzMTkzYTcyMjAzZDItNzQ5YS00YTFmLWFkYmMtYmM1OGUwOTc3YTY2";
-        //private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?response_mode=query&client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=token&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&scope=openid%20profile%20User.ReadWrite%20User.ReadBasic.All%20Mail.ReadWrite";
+        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send&state={0}";
+        private static string sPostBody = "grant_type=authorization_code&client_id=9cd99965-da20-4039-8e68-510d35bee7e2&code={0}&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&resource=https%3A%2F%2Fgraph.microsoft.com%2F&client_secret={1}";
+        private static string sPostUrl = "https://login.microsoftonline.com/common/oauth2/token";
+        private static string sClientSecret = "nlgKLCM17536*%fonsCFT*#";
+
         private int DialogId;
 
         private GraphService Service =  new GraphService();
@@ -63,12 +68,46 @@
 
         internal string UserName { get; set; }
 
+        internal string Token { get; set; }
+
         internal RootLuisDialog()
         {
             this.DialogId = ++sCurrentDialogID;
         }
 
-        private bool CheckSignin(IDialogContext context, LuisResult result)
+        public class AuthResponse
+        {
+            public string access_token { get; set; }
+            public string token_type { get; set; }
+        }
+
+        public async Task<string> GetAuthToken(string accessToken)
+        {
+            using (var client = new HttpClient())
+            {
+                using (var request = new HttpRequestMessage(HttpMethod.Post, sPostUrl))
+                {
+                    request.Headers.Add("Host", "login.microsoftonline.com");
+
+                    string content = String.Format(sPostBody, this.Code, Uri.EscapeDataString(sClientSecret));
+
+                    request.Content = new StringContent(content, Encoding.UTF8, "application/x-www-form-urlencoded");
+
+                    using (var response = await client.SendAsync(request))
+                    {
+                        if (response.IsSuccessStatusCode)
+                        {
+                            string stringResult = await response.Content.ReadAsStringAsync();
+                            AuthResponse obj = JsonConvert.DeserializeObject<AuthResponse>(stringResult);
+                            return obj.access_token;
+                        }
+                        else return "";
+                    }
+                }
+            }
+        }
+
+        private async Task<bool> CheckSignin(IDialogContext context, LuisResult result)
         {
             if (!IsSignedIn)
             {
@@ -76,7 +115,31 @@
 
                 var resultMessage = context.MakeMessage();
                 resultMessage.Attachments.Add(card.ToAttachment());
-                context.PostAsync(resultMessage);
+                await context.PostAsync(resultMessage);
+
+                int counter = 10;
+                while (!IsSignedIn && counter > 0)
+                {
+                    Thread.Sleep(2000);
+                    --counter;
+                }
+
+                string message = $"Sign In Timed Out!";
+
+                if (IsSignedIn)
+                {
+                    this.Token = await GetAuthToken(this.Code);
+
+                    message = $"Signed In!";
+                    await context.PostAsync(message);
+                    return true;
+
+                }
+
+                await context.PostAsync(message);
+
+                context.Wait(this.MessageReceived);
+
                 return false;
             }
 
@@ -88,7 +151,7 @@
         [LuisIntent("None")]
         public async Task None(IDialogContext context, LuisResult result)
         {
-            if (!CheckSignin(context, result))
+            if (!await CheckSignin(context, result))
             {
                 return;
             }
@@ -103,7 +166,7 @@
         [LuisIntent("Communication.FindEmail")]
         public async Task Search(IDialogContext context, IAwaitable<IMessageActivity> activity, LuisResult result)
         {
-            if (!CheckSignin(context, result))
+            if (!await CheckSignin(context, result))
             {
                 return;
             }
@@ -162,7 +225,7 @@
         [LuisIntent("Communication.Confirm")]
         public async Task Confirm(IDialogContext context, LuisResult result)
         {
-            if (!CheckSignin(context, result))
+            if (!await CheckSignin(context, result))
             {
                 return;
             }
@@ -175,7 +238,7 @@
         [LuisIntent("Communication.Reject")]
         public async Task Reject(IDialogContext context, LuisResult result)
         {
-            if (!CheckSignin(context, result))
+            if (!await CheckSignin(context, result))
             {
                 return;
             }
@@ -188,7 +251,7 @@
         [LuisIntent("Communication.SendEmail")]
         public async Task SendEmail(IDialogContext context, LuisResult result)
         {
-            if (!CheckSignin(context, result))
+            if (!await CheckSignin(context, result))
             {
                 return;
             }
@@ -201,7 +264,7 @@
         [LuisIntent("Communication.StartOver")]
         public async Task StartOver(IDialogContext context, LuisResult result)
         {
-            if (!CheckSignin(context, result))
+            if (!await CheckSignin(context, result))
             {
                 return;
             }
@@ -214,7 +277,7 @@
         [LuisIntent("Help")]
         public async Task Help(IDialogContext context, LuisResult result)
         {
-            if (!CheckSignin(context, result))
+            if (!await CheckSignin(context, result))
             {
                 return;
             }
@@ -222,7 +285,7 @@
             if (this.UserName == null)
             {
                 this.UserName = "";
-                this.UserName = await Service.GetMyEmailAddress(this.Code);
+                this.UserName = await Service.GetMyEmailAddress(this.Token);
             }
 
             await context.PostAsync($"Hello {this.UserName}! Try asking me things like 'search email sent by Rahul yesterday' or 'find mail I sent to the team last week'");

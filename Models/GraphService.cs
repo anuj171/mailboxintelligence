@@ -13,6 +13,8 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using Microsoft.Graph;
+using System.Linq;
 
 namespace Graph.Models
 {            
@@ -87,7 +89,7 @@ namespace Graph.Models
                     else
                     {
                         // If no photo exists, the sample uses a local file.
-                        return File.OpenRead(System.Web.Hosting.HostingEnvironment.MapPath("/Content/test.jpg"));
+                        return System.IO.File.OpenRead(System.Web.Hosting.HostingEnvironment.MapPath("/Content/test.jpg"));
                     }
                 }
             }
@@ -204,6 +206,7 @@ namespace Graph.Models
                     photo?.CopyTo(memoryStream);
                     photoBytes = memoryStream.ToArray();
                 }
+
                 List<Attachment> attachments = new List<Attachment>();
                 attachments.Add(new Attachment
                 {
@@ -214,10 +217,10 @@ namespace Graph.Models
 
                 // Upload the photo to the user's root drive and then create a sharing link.
                 FileInfo file = await UploadFile(accessToken, photo);
-                file.SharingLink = await CreateSharingLinkForFile(accessToken, file);
+                //file.SharingLink = await CreateSharingLinkForFile(accessToken, file);
 
                 // Add the sharing link to the email body.
-                string bodyContent = string.Format("" /* TODO Resource.Graph_SendMail_Body_Content*/, file.SharingLink);
+                string bodyContent = "This is Test Mail";// string.Format("" /* TODO Resource.Graph_SendMail_Body_Content*/, null);
 
                 // Build the email message.
                 Message message = new Message
@@ -239,5 +242,125 @@ namespace Graph.Models
                 };
             }
         }
+
+        // Create the email message using BODY.
+        public async Task<MessageRequest> BuildEmailMessageUsingBody(string accessToken, string recipients, string subject, string forwardBody)
+        {
+
+            // Prepare the recipient list.
+            string[] splitter = { ";" };
+            string[] splitRecipientsString = recipients.Split(splitter, StringSplitOptions.RemoveEmptyEntries);
+            List<Recipient> recipientList = new List<Recipient>();
+            foreach (string recipient in splitRecipientsString)
+            {
+                recipientList.Add(new Recipient
+                {
+                    EmailAddress = new UserInfo
+                    {
+                        Address = recipient.Trim()
+                    }
+                });
+            }
+
+            // Get the current user's profile photo (or a test image if no profile photo exists).
+            using (Stream photo = await GetMyProfilePhoto(accessToken))
+            {
+                // Add the photo as a file attachment for the email message.
+                byte[] photoBytes = null;
+                using (var memoryStream = new MemoryStream())
+                {
+                    photo?.CopyTo(memoryStream);
+                    photoBytes = memoryStream.ToArray();
+                }
+
+                List<Attachment> attachments = new List<Attachment>();
+                attachments.Add(new Attachment
+                {
+                    ODataType = "#microsoft.graph.fileAttachment",
+                    ContentBytes = photoBytes,
+                    Name = "mypic.jpg"
+                });
+
+                // Upload the photo to the user's root drive and then create a sharing link.
+                FileInfo file = await UploadFile(accessToken, photo);
+                //file.SharingLink = await CreateSharingLinkForFile(accessToken, file);
+
+                // Add the sharing link to the email body.
+                string bodyContent = forwardBody;// string.Format("" /* TODO Resource.Graph_SendMail_Body_Content*/, null);
+
+                // Build the email message.
+                Message message = new Message
+                {
+                    Body = new ItemBody
+                    {
+                        Content = bodyContent,
+                        ContentType = "HTML"
+                    },
+                    Subject = subject,
+                    ToRecipients = recipientList,
+                    Attachments = attachments
+                };
+
+                return new MessageRequest
+                {
+                    Message = message,
+                    SaveToSentItems = true
+                };
+            }
+        }
+        public List<Message> searchMails(string accessToken, SearchQuery query )
+        {
+            string queryString = string.Empty;
+            if (String.IsNullOrEmpty(query.Date))
+            {
+                queryString = (String.IsNullOrEmpty(query.TimeStart) ? "receivedDateTime ge 2000-01-01" : "receivedDateTime ge " + query.TimeStart);
+                queryString += (String.IsNullOrEmpty(query.TimeEnd) ? "" : " and receivedDateTime lt " + query.TimeEnd);
+
+            }
+            else
+            {
+                queryString += "receivedDateTime gt " + ((DateTime.Parse(query.Date)).AddDays(-1)).ToString("yyyy-MM-dd");
+                queryString += " and receivedDateTime lt " +((DateTime.Parse(query.Date)).AddDays(1)).ToString("yyyy-MM-dd");
+                //queryString = "receivedDateTime eq '" + query.Date + "'";
+            }
+            queryString += (String.IsNullOrEmpty(query.From) ? "" : " and from/emailAddress/address eq '" + query.From+ "'");
+            queryString += (String.IsNullOrEmpty(query.Content) ? "" : " and subject eq '" + query.Content + "'");
+            
+
+            GraphServiceClient client = new GraphServiceClient(
+                new DelegateAuthenticationProvider(
+                    (requestMessage) =>
+                    {
+                        requestMessage.Headers.Authorization =
+                            new AuthenticationHeaderValue("Bearer", accessToken);
+
+                        return Task.FromResult(0);
+                    }));
+            var mailResults = new List<Message>();
+            try
+            {
+                var responseData =  client.Me.MailFolders.Inbox.Messages.Request()
+                                    .OrderBy("receivedDateTime DESC")
+                                    //  .Filter("from/emailAddress/address eq 'hack@microsoft.com' and receivedDateTime ge 2018-07-15 and receivedDateTime lt 2018-07-23 and search='Intelligent+Mailbox+Assistant'")
+                                    .Filter(queryString)
+
+                                    .Select("subject,receivedDateTime,from,body")
+                                    .Top(5)
+                                    .GetAsync().GetAwaiter().GetResult().CurrentPage.ToList<Microsoft.Graph.Message>();
+                mailResults = responseData.Select(e => new Message { Subject = e.Subject, Body = new ItemBody { Content = e.Body.Content, ContentType = e.Body.ContentType.ToString()} }).ToList<Message>();
+               
+                // .Filter("startswith(displayName, 'hackathon') or (receivedDateTime ge 2018 - 07 - 15 and receivedDateTime lt 2018-07-23)")
+                // https://graph.microsoft.com/v1.0/me/messages?$filter=from/emailAddress/address eq 'hack@microsoft.com'
+                //https://graph.microsoft.com/v1.0/users?$filter=startswith(displayName,'hackathon') or receivedDateTime ge 2018-07-15 and receivedDateTime lt 2018-07-23 or startswith(surname,'mary') or startswith(mail,'mary') or startswith(userPrincipalName,'mary')
+
+            }
+            catch (Exception ex)
+            {
+                //TODO
+                throw ex;
+            }
+            return mailResults;
+        }
+
     }
 }

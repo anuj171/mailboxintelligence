@@ -34,7 +34,7 @@
         private const string DateRange = "builtin.datetimeV2.daterange";
         private const string DateTime = "builtin.datetimeV2.datetime";
         private const string DateTimeRange = "builtin.datetimeV2.datetimerange";
-        private const string Email = "email";
+        private const string Email = "builtin.email";
 
         // private IList<string> titleOptions = new List<string> { "“Very stylish, great stay, great staff”", "“good hotel awful meals”", "“Need more attention to little things”", "“Lovely small hotel ideally situated to explore the area.”", "“Positive surprise”", "“Beautiful suite and resort”" };
 
@@ -182,7 +182,7 @@
             var message = await activity;
 
             SearchQuery query = GetQueryFromResult(result);
-
+            IList<Message> mails = Service.searchMails(Token, query);
 
         }
 
@@ -196,6 +196,11 @@
             }
 
             if (result.TryFindEntity(From, out recommendation))
+            {
+               // query.From = recommendation.Entity;
+            }
+
+            if (result.TryFindEntity(Email, out recommendation))
             {
                 query.From = recommendation.Entity;
             }

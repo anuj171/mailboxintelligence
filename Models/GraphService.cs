@@ -13,6 +13,8 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using Microsoft.Graph;
+using System.Linq;
 
 namespace Graph.Models
 {            
@@ -87,7 +89,7 @@ namespace Graph.Models
                     else
                     {
                         // If no photo exists, the sample uses a local file.
-                        return File.OpenRead(System.Web.Hosting.HostingEnvironment.MapPath("/Content/test.jpg"));
+                        return System.IO.File.OpenRead(System.Web.Hosting.HostingEnvironment.MapPath("/Content/test.jpg"));
                     }
                 }
             }
@@ -239,5 +241,48 @@ namespace Graph.Models
                 };
             }
         }
+
+        public List<Message> searchMails(string accessToken, SearchQuery query )
+        {
+            string queryString = (String.IsNullOrEmpty(query.TimeStart) ? "receivedDateTime ge 2000-01-01" : "receivedDateTime ge " + query.TimeStart);
+            queryString += (String.IsNullOrEmpty(query.TimeEnd) ? "" : " and receivedDateTime lt " + query.TimeEnd);
+            queryString += (String.IsNullOrEmpty(query.Content) ? "" : " and subject eq '" + query.Content + "'");
+            queryString += (String.IsNullOrEmpty(query.From) ? "" : " and from/emailAddress/address eq '" + query.From+ "'");
+
+            GraphServiceClient client = new GraphServiceClient(
+                new DelegateAuthenticationProvider(
+                    (requestMessage) =>
+                    {
+                        requestMessage.Headers.Authorization =
+                            new AuthenticationHeaderValue("Bearer", accessToken);
+
+                        return Task.FromResult(0);
+                    }));
+            var mailResults = new List<Message>();
+            try
+            {
+                var responseData =  client.Me.MailFolders.Inbox.Messages.Request()
+                                    .OrderBy("receivedDateTime DESC")
+                                    //  .Filter("from/emailAddress/address eq 'hack@microsoft.com' and receivedDateTime ge 2018-07-15 and receivedDateTime lt 2018-07-23 and search='Intelligent+Mailbox+Assistant'")
+                                    .Filter(queryString)
+
+                                    .Select("subject,receivedDateTime,from,body")
+                                    .Top(100)
+                                    .GetAsync().GetAwaiter().GetResult().CurrentPage.ToList<Microsoft.Graph.Message>();
+                mailResults = responseData.Select(e => new Message { Subject = e.Subject, Body = new ItemBody { Content = e.Body.Content, ContentType = e.Body.ContentType.ToString()} }).ToList<Message>();
+               
+                // .Filter("startswith(displayName, 'hackathon') or (receivedDateTime ge 2018 - 07 - 15 and receivedDateTime lt 2018-07-23)")
+                // https://graph.microsoft.com/v1.0/me/messages?$filter=from/emailAddress/address eq 'hack@microsoft.com'
+                //https://graph.microsoft.com/v1.0/users?$filter=startswith(displayName,'hackathon') or receivedDateTime ge 2018-07-15 and receivedDateTime lt 2018-07-23 or startswith(surname,'mary') or startswith(mail,'mary') or startswith(userPrincipalName,'mary')
+
+            }
+            catch (Exception ex)
+            {
+                //TODO
+                throw ex;
+            }
+            return mailResults;
+        }
+
     }
 }

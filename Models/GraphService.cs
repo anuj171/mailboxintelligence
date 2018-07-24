@@ -243,6 +243,71 @@ namespace Graph.Models
             }
         }
 
+        // Create the email message using BODY.
+        public async Task<MessageRequest> BuildEmailMessageUsingBody(string accessToken, string recipients, string subject, string forwardBody)
+        {
+
+            // Prepare the recipient list.
+            string[] splitter = { ";" };
+            string[] splitRecipientsString = recipients.Split(splitter, StringSplitOptions.RemoveEmptyEntries);
+            List<Recipient> recipientList = new List<Recipient>();
+            foreach (string recipient in splitRecipientsString)
+            {
+                recipientList.Add(new Recipient
+                {
+                    EmailAddress = new UserInfo
+                    {
+                        Address = recipient.Trim()
+                    }
+                });
+            }
+
+            // Get the current user's profile photo (or a test image if no profile photo exists).
+            using (Stream photo = await GetMyProfilePhoto(accessToken))
+            {
+                // Add the photo as a file attachment for the email message.
+                byte[] photoBytes = null;
+                using (var memoryStream = new MemoryStream())
+                {
+                    photo?.CopyTo(memoryStream);
+                    photoBytes = memoryStream.ToArray();
+                }
+
+                List<Attachment> attachments = new List<Attachment>();
+                attachments.Add(new Attachment
+                {
+                    ODataType = "#microsoft.graph.fileAttachment",
+                    ContentBytes = photoBytes,
+                    Name = "mypic.jpg"
+                });
+
+                // Upload the photo to the user's root drive and then create a sharing link.
+                FileInfo file = await UploadFile(accessToken, photo);
+                //file.SharingLink = await CreateSharingLinkForFile(accessToken, file);
+
+                // Add the sharing link to the email body.
+                string bodyContent = forwardBody;// string.Format("" /* TODO Resource.Graph_SendMail_Body_Content*/, null);
+
+                // Build the email message.
+                Message message = new Message
+                {
+                    Body = new ItemBody
+                    {
+                        Content = bodyContent,
+                        ContentType = "HTML"
+                    },
+                    Subject = subject,
+                    ToRecipients = recipientList,
+                    Attachments = attachments
+                };
+
+                return new MessageRequest
+                {
+                    Message = message,
+                    SaveToSentItems = true
+                };
+            }
+        }
         public List<Message> searchMails(string accessToken, SearchQuery query )
         {
             string queryString = (String.IsNullOrEmpty(query.TimeStart) ? "receivedDateTime ge 2000-01-01" : "receivedDateTime ge " + query.TimeStart);

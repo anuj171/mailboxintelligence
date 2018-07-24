@@ -206,6 +206,7 @@ namespace Graph.Models
                     photo?.CopyTo(memoryStream);
                     photoBytes = memoryStream.ToArray();
                 }
+
                 List<Attachment> attachments = new List<Attachment>();
                 attachments.Add(new Attachment
                 {
@@ -216,10 +217,10 @@ namespace Graph.Models
 
                 // Upload the photo to the user's root drive and then create a sharing link.
                 FileInfo file = await UploadFile(accessToken, photo);
-                file.SharingLink = await CreateSharingLinkForFile(accessToken, file);
+                //file.SharingLink = await CreateSharingLinkForFile(accessToken, file);
 
                 // Add the sharing link to the email body.
-                string bodyContent = string.Format("" /* TODO Resource.Graph_SendMail_Body_Content*/, file.SharingLink);
+                string bodyContent = "This is Test Mail";// string.Format("" /* TODO Resource.Graph_SendMail_Body_Content*/, null);
 
                 // Build the email message.
                 Message message = new Message

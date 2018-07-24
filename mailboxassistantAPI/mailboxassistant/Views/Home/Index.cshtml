@@ -1,0 +1,37 @@
+﻿@* Copyright (c) Microsoft. All rights reserved. Licensed under the MIT license. See LICENSE.txt in the project root for license information.*@
+@{
+    ViewBag.Title = "Home Page";
+}
+
+<div class="jumbotron">
+    <script type="text/javascript">
+        function GetMails() {
+            var StartDay = document.getElementById("StartDayId").value;
+            var Today = document.getElementById("ToDayId").value;
+            var FromEmail = document.getElementById("FromEmailId").value;
+            var Subject = document.getElementById("SubjectIdId").value;
+            var url = '@Url.Action("InboxWithQuery", "Home")?fromDay='+StartDay+'&toDay='+Today+'&fromEmail='+FromEmail+'&containsStr='+Subject;
+            window.location.href = url;
+
+        }
+
+    </script>
+    <h1>ASP.NET MVC Tutorial</h1>
+    <p class="lead">This sample app uses the Mail API to read messages in your inbox.</p>
+    @if (Request.IsAuthenticated)
+    {
+        <p>Welcome, @(ViewBag.UserName)!</p>
+        @*<p>View  last <a href="@Url.Action( "Inbox", "Home", null, Request.Url.Scheme)" class="btn btn-primary btn-lg">7 days from 'hack@microsoft.com'</a> Mails!</p>*@
+        <input id="StartDayId" type="text" name="StartDay" placeholder="Start Date : yyyy-mm-dd"/>
+        <input id="ToDayId" type="text" name="ToDay"  placeholder="End Date : yyyy-mm-dd"/>
+        <input id="FromEmailId" type="text" name="From Email"  placeholder="Email from"/>
+        <input id="SubjectIdId" type="text" name="Subject" placeholder="Subject" />
+
+         @*<p><a href="@Url.Action("InboxWithQuery", "Home", null, Request.Url.Scheme)" class="btn btn-primary btn-lg">View Mails</a> Mails!</p>*@
+        <input type="button" id="btnId"  title="View Mails!" onclick="GetMails();"/>
+    }
+    else
+    {
+        <p><a href="@Url.Action("SignIn", "Home", null, Request.Url.Scheme)" class="btn btn-primary btn-lg">Click here to login</a></p>
+    }
+</div>

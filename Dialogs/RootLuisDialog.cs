@@ -285,7 +285,7 @@
             if (this.UserName == null)
             {
                 this.UserName = "";
-                this.UserName = await Service.GetMyEmailAddress(this.Token);
+                this.UserName = await Service.GetMyName(this.Token);
             }
 
             await context.PostAsync($"Hello {this.UserName}! Try asking me things like 'search email sent by Rahul yesterday' or 'find mail I sent to the team last week'");

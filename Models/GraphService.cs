@@ -29,14 +29,14 @@ namespace Graph.Models
     {
 
         // Get the current user's email address from their profile.
-        public async Task<string> GetMyEmailAddress(string accessToken)
+        public async Task<string> GetMyName(string accessToken)
         {
 
             // Get the current user. 
             // The app only needs the user's email address, so select the mail and userPrincipalName properties.
             // If the mail property isn't defined, userPrincipalName should map to the email for all account types. 
             string endpoint = "https://graph.microsoft.com/v1.0/me";
-            string queryParameter = "?$select=mail,userPrincipalName";
+            string queryParameter = "?$select=mail,userPrincipalName,displayName";
             UserInfo me = new UserInfo();
 
             using (var client = new HttpClient())
@@ -54,9 +54,9 @@ namespace Graph.Models
                         if (response.IsSuccessStatusCode)
                         {
                             var json = JObject.Parse(await response.Content.ReadAsStringAsync());
-                            me.Address = !string.IsNullOrEmpty(json.GetValue("mail").ToString()) ? json.GetValue("mail").ToString() : json.GetValue("userPrincipalName").ToString();
+                            me.Name = !string.IsNullOrEmpty(json.GetValue("displayName").ToString()) ? json.GetValue("displayName").ToString() : json.GetValue("userPrincipalName").ToString();
                         }
-                        return me.Address?.Trim();
+                        return me.Name?.Trim();
                     }
                 }
             }

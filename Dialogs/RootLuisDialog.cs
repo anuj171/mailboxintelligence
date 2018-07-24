@@ -10,6 +10,7 @@
     using System.Threading.Tasks;
     using System.Web;
     using Graph.Models;
+    using Luis.Models;
     using Microsoft.Bot.Builder.Dialogs;
     using Microsoft.Bot.Builder.FormFlow;
     using Microsoft.Bot.Builder.Luis;
@@ -22,11 +23,18 @@
     [Serializable]
     public class RootLuisDialog : LuisDialog<object>
     {
-        // private const string EntityGeographyCity = "builtin.geography.city";
 
-        // private const string EntityHotelName = "Hotel";
-
-        // private const string EntityAirportCode = "AirportCode";
+        // Entities
+        private const string Content = "Content";
+        private const string From = "From";
+        private const string To = "To";
+        private const string ToList = "ToList";
+        private const string Users = "Users";
+        private const string Date = "builtin.datetimeV2.date";
+        private const string DateRange = "builtin.datetimeV2.daterange";
+        private const string DateTime = "builtin.datetimeV2.datetime";
+        private const string DateTimeRange = "builtin.datetimeV2.datetimerange";
+        private const string Email = "email";
 
         // private IList<string> titleOptions = new List<string> { "“Very stylish, great stay, great staff”", "“good hotel awful meals”", "“Need more attention to little things”", "“Lovely small hotel ideally situated to explore the area.”", "“Positive surprise”", "“Beautiful suite and resort”" };
 
@@ -75,7 +83,7 @@
             this.DialogId = ++sCurrentDialogID;
         }
 
-        public class AuthResponse
+        internal class AuthResponse
         {
             public string access_token { get; set; }
             public string token_type { get; set; }
@@ -117,7 +125,7 @@
                 resultMessage.Attachments.Add(card.ToAttachment());
                 await context.PostAsync(resultMessage);
 
-                int counter = 10;
+                int counter = 20;
                 while (!IsSignedIn && counter > 0)
                 {
                     Thread.Sleep(2000);
@@ -172,19 +180,50 @@
             }
 
             var message = await activity;
-            await context.PostAsync($"Searching your mail for '{message.Text}'...");
-            //var hotelsQuery = new HotelsQuery();
 
-            //EntityRecommendation cityEntityRecommendation;
+            SearchQuery query = GetQueryFromResult(result);
 
-            //if (result.TryFindEntity(EntityGeographyCity, out cityEntityRecommendation))
-            //{
-            //    cityEntityRecommendation.Type = "Destination";
-            //}
 
-            //var hotelsFormDialog = new FormDialog<HotelsQuery>(hotelsQuery, this.BuildHotelsForm, FormOptions.PromptInStart, result.Entities);
+        }
 
-            //context.Call(hotelsFormDialog, this.ResumeAfterHotelsFormDialog);
+        SearchQuery GetQueryFromResult(LuisResult result)
+        {
+            SearchQuery query = new SearchQuery();
+            EntityRecommendation recommendation;
+            if (result.TryFindEntity(Content, out recommendation))
+            {
+                query.Content = recommendation.Entity;
+            }
+
+            if (result.TryFindEntity(From, out recommendation))
+            {
+                query.From = recommendation.Entity;
+            }
+
+            if (result.TryFindEntity(To, out recommendation))
+            {
+                query.To = recommendation.Entity;
+            }
+
+            if (result.TryFindEntity(Date, out recommendation) || result.TryFindEntity(DateTime, out recommendation))
+            {
+                string dateStr = "";
+                EntityRecommendationExtensions.TryGetValue(recommendation, out dateStr);
+
+                query.TimeStart = dateStr;
+                query.TimeEnd = dateStr;
+            }
+
+            if (result.TryFindEntity(DateRange, out recommendation) || result.TryFindEntity(DateTimeRange, out recommendation))
+            {
+                Range range;
+                EntityRecommendationExtensions.TryGetRange(recommendation, out range);
+
+                query.TimeStart = range.Start;
+                query.TimeEnd = range.End;
+            }
+
+            return query;
         }
 
         //[LuisIntent("ShowHotelsReviews")]

@@ -10,7 +10,16 @@ namespace Graph.Models
         public string Name { get; set; }
         public string Address { get; set; }
 
-}
+    }
+
+    public class SearchQuery
+    {
+        public string Content { get; set; }
+        public string From { get; set; }
+        public string To { get; set; }
+        public string TimeStart { get; set; }
+        public string TimeEnd { get; set; }
+    }
 
     public class FileInfo
     {

@@ -201,6 +201,7 @@
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
+    <Compile Include="Models\EntityRecommendationExtensions.cs" />
     <Compile Include="Models\GraphResources.cs" />
     <Compile Include="Models\GraphService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

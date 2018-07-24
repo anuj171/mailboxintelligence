@@ -210,9 +210,23 @@
                 query.From = recommendation.Entity;
             }
 
+            if (result.TryFindEntity(Email, out recommendation))
+            {
+                if (String.IsNullOrEmpty(query.From))
+                {
+                    query.From = recommendation.Entity;
+                }
+            }
+
             if (result.TryFindEntity(To, out recommendation))
             {
                 query.To = recommendation.Entity;
+
+                if (query.To.Equals("me", StringComparison.InvariantCultureIgnoreCase) ||
+                    query.To.Equals("myself", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    query.To = this.UserName;
+                }
             }
 
             if (result.TryFindEntity(Date, out recommendation) || result.TryFindEntity(DateTime, out recommendation))

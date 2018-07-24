@@ -19,6 +19,7 @@ namespace Graph.Models
         public string To { get; set; }
         public string TimeStart { get; set; }
         public string TimeEnd { get; set; }
+        public string Date { get; set; }
 
         public bool IsEmpty()
         {
@@ -26,7 +27,8 @@ namespace Graph.Models
                 String.IsNullOrEmpty(From) &&
                 String.IsNullOrEmpty(To) &&
                 String.IsNullOrEmpty(TimeStart) &&
-                String.IsNullOrEmpty(TimeEnd);
+                String.IsNullOrEmpty(TimeEnd) &&
+                String.IsNullOrEmpty(Date); 
         }
 
         public override string ToString()
@@ -51,6 +53,10 @@ namespace Graph.Models
             if (!String.IsNullOrEmpty(TimeEnd))
             {
                 query += "TimeEnd: " + TimeEnd + "  ";
+            }
+            if (!String.IsNullOrEmpty(Date))
+            {
+                query += "Date: " + Date + "  ";
             }
 
             return query;

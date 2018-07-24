@@ -220,8 +220,7 @@
                 string dateStr = "";
                 EntityRecommendationExtensions.TryGetValue(recommendation, out dateStr);
 
-                query.TimeStart = dateStr;
-                query.TimeEnd = dateStr;
+                query.Date = dateStr;
             }
 
             if (result.TryFindEntity(DateRange, out recommendation) || result.TryFindEntity(DateTimeRange, out recommendation))

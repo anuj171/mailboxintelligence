@@ -38,7 +38,7 @@
         private const string Email = "builtin.email";
 
         private static int sCurrentDialogID = 0;
-        private static Dictionary<int, string> sDialogIdToCodeMap = new Dictionary<int, string>();
+        private static Dictionary<string, string> sDialogIdToCodeMap = new Dictionary<string, string>();
         private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={2}&response_type=code&redirect_uri={1}%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send%20People.Read&state={0}";
         private static string sPostBody = "grant_type=authorization_code&client_id={3}&code={0}&redirect_uri={2}%2Fapi%2FOAuthCallBack&resource=https%3A%2F%2Fgraph.microsoft.com%2F&client_secret={1}";
         private static string sPostUrl = "https://login.microsoftonline.com/common/oauth2/token";
@@ -47,16 +47,17 @@
         private string ClientId = ConfigurationManager.AppSettings["MicrosoftAppId"];
         private string AppSecret = ConfigurationManager.AppSettings["MicrosoftAppPassword"];
 
-        private int DialogId = 0;
+        private string DialogId;
 
         private GraphService Service =  new GraphService();
 
-        internal static void UpdateCodeAsync(string code)
+        internal static void UpdateCodeAsync(string code, string dialogId)
         {
-            if (!sDialogIdToCodeMap.ContainsKey(sCurrentDialogID))
+            if (sDialogIdToCodeMap.ContainsKey(dialogId))
             {
-                sDialogIdToCodeMap.Add(sCurrentDialogID, code);
+                sDialogIdToCodeMap.Remove(dialogId);
             }
+            sDialogIdToCodeMap.Add(dialogId, code);
         }
 
         internal bool IsSignedIn {
@@ -86,7 +87,7 @@
 
         internal RootLuisDialog()
         {
-            this.DialogId = ++sCurrentDialogID;
+            this.DialogId = Guid.NewGuid().ToString();
         }
 
         internal class AuthResponse
@@ -177,75 +178,90 @@
         [LuisIntent("None")]
         public async Task None(IDialogContext context, LuisResult result)
         {
-            if (!await CheckSignin(context, result))
+            try
             {
-                return;
+                if (!await CheckSignin(context, result))
+                {
+                    return;
+                }
+
+                string message = $"Sorry, I did not understand '{result.Query}'. Type 'help' if you need assistance.";
+
+                await context.PostAsync(message);
+
+                context.Wait(this.MessageReceived);
             }
-
-            string message = $"Sorry, I did not understand '{result.Query}'. Type 'help' if you need assistance.";
-
-            await context.PostAsync(message);
-
-            context.Wait(this.MessageReceived);
+            catch (Exception e)
+            {
+                if (e.Message.Contains("Expired") || e.Message.Contains("Auth"))
+                {
+                    await context.PostAsync("Your singin has expired, please signin and try again!");
+                    sDialogIdToCodeMap[this.DialogId] = null;
+                    await CheckSignin(context, result);
+                }
+                else
+                {
+                    await context.PostAsync(e.Message);
+                    await context.PostAsync(e.StackTrace);
+                }
+                context.Wait(this.MessageReceived);
+            }
         }
 
         [LuisIntent("Communication.FindEmail")]
         public async Task Search(IDialogContext context, IAwaitable<IMessageActivity> activity, LuisResult result)
         {
-            if (!await CheckSignin(context, result))
-            {
-                return;
-            }
-
-            SearchQuery query = GetQueryFromResult(result);
-
-            string reply;
-            if (query.IsEmpty())
-            {
-                reply = $"Sorry, I did not understand '{result.Query}'. Please be more specific.";
-            }
-            else
-            {
-                reply = $"Searching for: '{query.ToString()}'";
-            }
-
-            await context.PostAsync(reply);
-
-            IList<Message> mails = new List<Message>();
             try
             {
-                mails = Service.searchMails(Token, query);
+                if (!await CheckSignin(context, result))
+                {
+                    return;
+                }
+
+                SearchQuery query = GetQueryFromResult(result);
+
+                string reply;
+                if (query.IsEmpty())
+                {
+                    reply = $"Sorry, I did not understand '{result.Query}'. Please be more specific.";
+                    context.Wait(this.MessageReceived);
+                }
+                else
+                {
+                    reply = $"Searching for: '{query.ToString()}'";
+
+                    await context.PostAsync(reply);
+
+                    IList<Message> mails = new List<Message>();
+
+                    mails = Service.searchMails(Token, query);
+
+                    await PublishCards(context, mails);
+                }
+                
             }
             catch (Exception e)
             {
-                await context.PostAsync(e.Message);
-                await context.PostAsync(e.StackTrace);
+                if (e.Message.Contains("Expired") || e.Message.Contains("Auth"))
+                {
+                    await context.PostAsync("Your singin has expired, please signin and try again!");
+                    sDialogIdToCodeMap[this.DialogId] = null;
+                    if (await CheckSignin(context, result))
+                    {
+                        context.Wait(this.MessageReceived);
+                    }
+                }
+                else
+                {
+                    await context.PostAsync(e.Message);
+                    await context.PostAsync(e.StackTrace);
+                }
+                context.Wait(this.MessageReceived);
             }
-
-            await PublishCards(context, mails);
-
-            //context.Wait(this.MessageReceived);
         }
 
         public async Task PublishCards(IDialogContext context, IList<Message> msgs)
         {
- /*
-            var resultMessage = context.MakeMessage();
-            resultMessage.AttachmentLayout = AttachmentLayoutTypes.Carousel;
-            resultMessage.Attachments = new List<Microsoft.Bot.Connector.Attachment>();
-            foreach (Message msg in msgs)
-            {
-                ThumbnailCard thumbnailCard = new ThumbnailCard()
-                {
-                    Title = msg.Subject,
-                    Text = msg.Body.Content.ToString(),
-                };
-
-                resultMessage.Attachments.Add(thumbnailCard.ToAttachment());
-            }
-            await context.PostAsync(resultMessage);
- */
-
             List<CardAction> Go = new List<CardAction>();
             var i = 0;
             foreach (var obj in msgs)
@@ -275,17 +291,25 @@
             context.Wait(this.SelectedMail);
         }
 
-        protected async Task SelectedMail(IDialogContext context, IAwaitable<object> result)
+        protected async Task SelectedMail(IDialogContext context, IAwaitable<IMessageActivity> activity)
         {
-            var message = await result as IMessageActivity;
-            this.ForwardMessageBody = message.Text;
+            try
+            {
+                var message = await activity;
+                this.ForwardMessageBody = message.Text;
 
-            await context.PostAsync("Whom you want to send selected mail ");
-            context.Wait(this.MessageReceived);
-            context.Done(new object());
+                await context.PostAsync("Whom you want to send selected mail ");
+                context.Wait(this.MessageReceived);
+            }
+            catch (Exception e)
+            {
+                await context.PostAsync(e.Message);
+                await context.PostAsync(e.StackTrace);
+                context.Wait(this.MessageReceived);
+            }
         }
 
-            SearchQuery GetQueryFromResult(LuisResult result)
+        SearchQuery GetQueryFromResult(LuisResult result)
         {
             SearchQuery query = new SearchQuery();
             EntityRecommendation recommendation;
@@ -295,11 +319,6 @@
             }
 
             if (result.TryFindEntity(From, out recommendation))
-            {
-               // query.From = recommendation.Entity;
-            }
-
-            if (result.TryFindEntity(Email, out recommendation))
             {
                 query.From = recommendation.Entity;
             }
@@ -343,65 +362,72 @@
             return query;
         }
 
-        //[LuisIntent("ShowHotelsReviews")]
-        //public async Task Reviews(IDialogContext context, LuisResult result)
-        //{
-        //    EntityRecommendation hotelEntityRecommendation;
-
-        //    if (result.TryFindEntity(EntityHotelName, out hotelEntityRecommendation))
-        //    {
-        //        await context.PostAsync($"Looking for reviews of '{hotelEntityRecommendation.Entity}'...");
-
-        //        var resultMessage = context.MakeMessage();
-        //        resultMessage.AttachmentLayout = AttachmentLayoutTypes.Carousel;
-        //        resultMessage.Attachments = new List<Attachment>();
-
-        //        for (int i = 0; i < 5; i++)
-        //        {
-        //            var random = new Random(i);
-        //            ThumbnailCard thumbnailCard = new ThumbnailCard()
-        //            {
-        //                Title = this.titleOptions[random.Next(0, this.titleOptions.Count - 1)],
-        //                Text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris odio magna, sodales vel ligula sit amet, vulputate vehicula velit. Nulla quis consectetur neque, sed commodo metus.",
-        //                Images = new List<CardImage>()
-        //                {
-        //                    new CardImage() { Url = "https://upload.wikimedia.org/wikipedia/en/e/ee/Unknown-person.gif" }
-        //                },
-        //            };
-
-        //            resultMessage.Attachments.Add(thumbnailCard.ToAttachment());
-        //        }
-
-        //        await context.PostAsync(resultMessage);
-        //    }
-
-        //    context.Wait(this.MessageReceived);
-        //}
-
         [LuisIntent("Communication.Confirm")]
         public async Task Confirm(IDialogContext context, LuisResult result)
         {
-            if (!await CheckSignin(context, result))
+            try
             {
-                return;
+                if (!await CheckSignin(context, result))
+                {
+                    return;
+                }
+
+                await context.PostAsync("Confirming the option.");
+
+                context.Wait(this.MessageReceived);
             }
-
-            await context.PostAsync("Confirming the option.");
-
-            context.Wait(this.MessageReceived);
+            catch (Exception e)
+            {
+                if (e.Message.Contains("Expired") || e.Message.Contains("Auth"))
+                {
+                    await context.PostAsync("Your singin has expired, please signin and try again!");
+                    sDialogIdToCodeMap[this.DialogId] = null;
+                    if (await CheckSignin(context, result))
+                    {
+                        context.Wait(this.MessageReceived);
+                    }
+                }
+                else
+                {
+                    await context.PostAsync(e.Message);
+                    await context.PostAsync(e.StackTrace);
+                }
+                context.Wait(this.MessageReceived);
+            }
         }
 
         [LuisIntent("Communication.Reject")]
         public async Task Reject(IDialogContext context, LuisResult result)
         {
-            if (!await CheckSignin(context, result))
+            try
             {
-                return;
+                if (!await CheckSignin(context, result))
+                {
+                    return;
+                }
+
+                await context.PostAsync("Ok rejecting the option.");
+
+                context.Wait(this.MessageReceived);
             }
-
-            await context.PostAsync("Ok rejecting the option.");
-
-            context.Wait(this.MessageReceived);
+            catch (Exception e)
+            {
+                if (e.Message.Contains("Expired") || e.Message.Contains("Auth"))
+                {
+                    await context.PostAsync("Your singin has expired, please signin and try again!");
+                    sDialogIdToCodeMap[this.DialogId] = null;
+                    if (await CheckSignin(context, result))
+                    {
+                        context.Wait(this.MessageReceived);
+                    }
+                }
+                else
+                {
+                    await context.PostAsync(e.Message);
+                    await context.PostAsync(e.StackTrace);
+                }
+                context.Wait(this.MessageReceived);
+            }
         }
 
         public class UserEmailAddress
@@ -422,97 +448,146 @@
         [LuisIntent("Communication.SendEmail")]
         public async Task SendEmail(IDialogContext context, LuisResult result)
         {
-            if (!await CheckSignin(context, result))
+            try
             {
-                return;
-            }
-
-            var toekn = this.Token;
-            var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("Accept", "application/json");
-            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", toekn);
-            var name = result.Entities[0].Entity;
-            var url = "https://graph.microsoft.com/beta/me/people?$search=" + name + "&$select=userPrincipalName,displayName";
-            var jsonResponse = await client.GetStringAsync(url);
-
-            var value = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
-            List<UserEmailAddress> emailList = value.value;
-            List<CardAction> Go = new List<CardAction>();
-            foreach (var obj in emailList)
-            {
-
-                CardAction Actioncard = new CardAction()
+                if (!await CheckSignin(context, result))
                 {
-                    Type =  ActionTypes.ImBack,
-                    Title = obj.userPrincipalName,
-                    Text = obj.displayName,
-                    Value = obj.userPrincipalName
+                    return;
+                }
 
-                };
+                var toekn = this.Token;
+                var client = new HttpClient();
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
+                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", toekn);
+                var name = result.Entities[0].Entity;
+                var url = "https://graph.microsoft.com/beta/me/people?$search=" + name + "&$select=userPrincipalName,displayName";
+                var jsonResponse = await client.GetStringAsync(url);
 
-                Go.Add(Actioncard);
+                var value = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
+                List<UserEmailAddress> emailList = value.value;
+                List<CardAction> Go = new List<CardAction>();
+                foreach (var obj in emailList)
+                {
+
+                    CardAction Actioncard = new CardAction()
+                    {
+                        Type =  ActionTypes.ImBack,
+                        Title = obj.userPrincipalName,
+                        Text = obj.displayName,
+                        Value = obj.userPrincipalName
+
+                    };
+
+                    Go.Add(Actioncard);
+                }
+
+                HeroCard card = new HeroCard { Title = "Below Email ID found. Please choose whom to send Email", Buttons = Go };
+                var message = context.MakeMessage();
+                message.Attachments.Add(card.ToAttachment());
+                await context.PostAsync(message);
+                context.Wait(this.SendMailOnSelectedMail);
             }
-
-            HeroCard card = new HeroCard { Title = "Below Email ID found. Please choose whom to send Email", Buttons = Go };
-            var message = context.MakeMessage();
-            message.Attachments.Add(card.ToAttachment());
-            await context.PostAsync(message);
-            context.Wait(this.SendMailOnSelectedMail);
+            catch (Exception e)
+            {
+                if (e.Message.Contains("Expired") || e.Message.Contains("Auth"))
+                {
+                    await context.PostAsync("Your singin has expired, please signin and try again!");
+                    sDialogIdToCodeMap[this.DialogId] = null;
+                    if (await CheckSignin(context, result))
+                    {
+                        context.Wait(this.MessageReceived);
+                    }
+                }
+                else
+                {
+                    await context.PostAsync(e.Message);
+                    await context.PostAsync(e.StackTrace);
+                }
+                context.Wait(this.MessageReceived);
+            }
         }
 
         protected async Task SendMailOnSelectedMail(IDialogContext context, IAwaitable<object> result)
         {
-            var message = await result as IMessageActivity;
-
-            GraphService emailService = new GraphService();
-            MessageRequest emailMessageRequest = new MessageRequest();
-            if (String.IsNullOrEmpty(this.ForwardMessageBody))
+            try
             {
-                emailMessageRequest = await emailService.BuildEmailMessage(Token, message.Text, "Test Mail from bot app");
+                var message = await result as IMessageActivity;
+
+                GraphService emailService = new GraphService();
+                MessageRequest emailMessageRequest = new MessageRequest();
+                if (String.IsNullOrEmpty(this.ForwardMessageBody))
+                {
+                    emailMessageRequest = await emailService.BuildEmailMessage(Token, message.Text, "Test Mail from bot app");
+                }
+                else
+                {
+                    emailMessageRequest = await emailService.BuildEmailMessageUsingBody(Token, message.Text, "Test Mail from bot app", this.ForwardMessageBody);
+                    this.ForwardMessageBody = "";
+                }
+
+
+                string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
+                await context.PostAsync(resultMessage);
+                context.Wait(this.MessageReceived);
+                context.Done(new object());
             }
-            else
+            catch (Exception e)
             {
-                emailMessageRequest = await emailService.BuildEmailMessageUsingBody(Token, message.Text, "Test Mail from bot app", this.ForwardMessageBody);
-                this.ForwardMessageBody = "";
+                await context.PostAsync(e.Message);
+                await context.PostAsync(e.StackTrace);
+                context.Wait(this.MessageReceived);
             }
-
-
-            string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
-            await context.PostAsync(resultMessage);
-            context.Wait(this.MessageReceived);
-            context.Done(new object());
         }
 
         [LuisIntent("Communication.StartOver")]
         public async Task StartOver(IDialogContext context, LuisResult result)
         {
-            if (!await CheckSignin(context, result))
+            // clear credentials as we are starting over
+            sDialogIdToCodeMap[this.DialogId] = null;
+            if (await CheckSignin(context, result))
             {
-                return;
+                context.Wait(this.MessageReceived);
             }
-
-            await context.PostAsync("Type 'help' if you need assistance.");
-
-            context.Wait(this.MessageReceived);
         }
 
         [LuisIntent("Help")]
         public async Task Help(IDialogContext context, LuisResult result)
         {
-            if (!await CheckSignin(context, result))
+            try
+            {
+                if (!await CheckSignin(context, result))
             {
                 return;
             }
 
-            if (this.UserName == null)
-            {
-                this.UserName = "";
-                this.UserName = await Service.GetMyName(this.Token);
+                if (this.UserName == null)
+                {
+                    this.UserName = "";
+                    this.UserName = await Service.GetMyName(this.Token);
+                }
+
+                await context.PostAsync($"Hello {this.UserName}! Try asking me things like 'search email sent by Rahul yesterday' or 'find mail I sent to the team last week'");
+
+                context.Wait(this.MessageReceived);
             }
-
-            await context.PostAsync($"Hello {this.UserName}! Try asking me things like 'search email sent by Rahul yesterday' or 'find mail I sent to the team last week'");
-
-            context.Wait(this.MessageReceived);
+            catch (Exception e)
+            {
+                if (e.Message.Contains("Expired") || e.Message.Contains("Auth"))
+                {
+                    await context.PostAsync("Your singin has expired, please signin and try again!");
+                    sDialogIdToCodeMap[this.DialogId] = null;
+                    if (await CheckSignin(context, result))
+                    {
+                        context.Wait(this.MessageReceived);
+                    }
+                }
+                else
+                {
+                    await context.PostAsync(e.Message);
+                    await context.PostAsync(e.StackTrace);
+                }
+                context.Wait(this.MessageReceived);
+            }
         }
 
 

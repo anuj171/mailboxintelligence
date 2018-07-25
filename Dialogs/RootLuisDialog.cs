@@ -363,6 +363,11 @@
                 {
                     query.To = this.UserName;
                 }
+
+                if (query.To.Contains("@"))
+                {
+                    query.To = query.To.Replace(" ", "");
+                }
             }
 
             if (result.TryFindEntity(Date, out recommendation) || result.TryFindEntity(DateTime, out recommendation))
@@ -478,12 +483,21 @@
                     return;
                 }
 
-                if(IsValidEmail(result.Entities[0].Entity))
+                EntityRecommendation recommendation;             
+
+                if (result.TryFindEntity(Email, out recommendation))
                 {
+                    String email;
+                    email = recommendation.Entity;
+                    email = email.Replace(" ", "");
+
                     //Valid Email Provided in cotext Send Mail to that mail
                     GraphService emailService = new GraphService();
                     MessageRequest emailMessageRequest = new MessageRequest();
-                    emailMessageRequest = await emailService.BuildEmailMessage(Token, result.Entities[0].Entity, "Test Mail from bot app");
+                    emailMessageRequest = await emailService.BuildEmailMessage(Token, email, "Mail from Mailbox Intelligence Bot");
+
+                    await context.PostAsync("Sending email to: " + email);
+
                     string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
                     await context.PostAsync(resultMessage);
                     context.Wait(this.MessageReceived);
@@ -491,56 +505,79 @@
                     return;
                 }
 
-                var toekn = this.Token;
-                var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("Accept", "application/json");
-                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", toekn);
-                var name = result.Entities[0].Entity;
-                var url = "https://graph.microsoft.com/beta/me/people?$search=" + name + "&$select=userPrincipalName,displayName";
-                var jsonResponse = await client.GetStringAsync(url);
-
-                var value = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
-                List<UserEmailAddress> emailList = value.value;
-                if (emailList.Count == 0)
+                String to;
+                if (result.TryFindEntity(To, out recommendation))
                 {
-                    await context.PostAsync("No EMail ID found");
-                    context.Wait(this.MessageReceived);
-                    return;
-                } else if(emailList.Count == 1)
-                {
-                    //Only one Email ID found send Email
-                    await context.PostAsync("Found Email id: " + emailList[0].userPrincipalName);
-                    await context.PostAsync("Sending Email To: " + emailList[0].userPrincipalName);
+                    to = recommendation.Entity;
 
-                    GraphService emailService = new GraphService();
-                    MessageRequest emailMessageRequest = new MessageRequest();
-                    emailMessageRequest = await emailService.BuildEmailMessage(Token, emailList[0].userPrincipalName, "Test Mail from bot app");
-                    string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
-                    await context.PostAsync(resultMessage);
-                    context.Wait(this.MessageReceived);
+                    if (to.Equals("me", StringComparison.InvariantCultureIgnoreCase) ||
+                        to.Equals("myself", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        to = this.UserName;
+                    }
 
-                    return;
+                    if (to.Contains("@"))
+                    {
+                        to = to.Replace(" ", "");
+                    }
+
+
+                    var toekn = this.Token;
+                    var client = new HttpClient();
+                    client.DefaultRequestHeaders.Add("Accept", "application/json");
+                    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", toekn);
+                    var name = to;
+                    var url = "https://graph.microsoft.com/beta/me/people?$search=" + name + "&$select=userPrincipalName,displayName";
+                    var jsonResponse = await client.GetStringAsync(url);
+
+                    var value = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
+                    List<UserEmailAddress> emailList = value.value;
+                    if (emailList.Count == 0)
+                    {
+                        await context.PostAsync("No EMail ID found");
+                        context.Wait(this.MessageReceived);
+                        return;
+                    } else if(emailList.Count == 1)
+                    {
+                        //Only one Email ID found send Email
+                        await context.PostAsync("Found Email id: " + emailList[0].userPrincipalName);
+                        await context.PostAsync("Sending Email To: " + emailList[0].userPrincipalName);
+
+                        GraphService emailService = new GraphService();
+                        MessageRequest emailMessageRequest = new MessageRequest();
+                        emailMessageRequest = await emailService.BuildEmailMessage(Token, emailList[0].userPrincipalName, "Test Mail from bot app");
+                        string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
+                        await context.PostAsync(resultMessage);
+                        context.Wait(this.MessageReceived);
+
+                        return;
+                    }
+                    List<CardAction> Go = new List<CardAction>();
+                    foreach (var obj in emailList)
+                    {
+
+                            CardAction Actioncard = new CardAction()
+                            {
+                                // Type =  ActionTypes.ImBack,
+                                Title = obj.userPrincipalName,
+                                Text = obj.displayName,
+                                Value = obj.userPrincipalName
+
+                            };
+                            Go.Add(Actioncard);
+                    }
+
+                    HeroCard card = new HeroCard { Title = "Below Email ID found. Please choose whom to send Email", Buttons = Go };
+                    var message = context.MakeMessage();
+                    message.Attachments.Add(card.ToAttachment());
+                    await context.PostAsync(message);
+                    context.Wait(this.SendMailOnSelectedMail);
                 }
-                List<CardAction> Go = new List<CardAction>();
-                foreach (var obj in emailList)
+                else
                 {
-
-                        CardAction Actioncard = new CardAction()
-                        {
-                            // Type =  ActionTypes.ImBack,
-                            Title = obj.userPrincipalName,
-                            Text = obj.displayName,
-                            Value = obj.userPrincipalName
-
-                        };
-                        Go.Add(Actioncard);
+                    await context.PostAsync("Sorry, I did not understand, please try again.");
+                    context.Wait(this.MessageReceived);
                 }
-
-                HeroCard card = new HeroCard { Title = "Below Email ID found. Please choose whom to send Email", Buttons = Go };
-                var message = context.MakeMessage();
-                message.Attachments.Add(card.ToAttachment());
-                await context.PostAsync(message);
-                context.Wait(this.SendMailOnSelectedMail);
             }
             catch (Exception e)
             {

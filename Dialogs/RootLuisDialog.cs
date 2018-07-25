@@ -19,6 +19,7 @@
     using Microsoft.Bot.Connector;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
+    using System.Text.RegularExpressions;
 
     [LuisModel("493b6434-b844-4487-8d38-09d1319673f2", "6c18e9d8d7164409b9ffefba1a431416")]
     [Serializable]
@@ -245,6 +246,12 @@
             }
             await context.PostAsync(resultMessage);
  */
+            if(msgs.Count == 0)
+            {
+                await context.PostAsync("No Mail found");
+                context.Wait(this.MessageReceived);
+                return;
+            }
 
             List<CardAction> Go = new List<CardAction>();
             var i = 0;
@@ -275,9 +282,19 @@
             context.Wait(this.SelectedMail);
         }
 
+        private bool ContainsHTML(string CheckString)
+        {
+            return Regex.IsMatch(CheckString, "<(.|\n)*?>");
+        }
         protected async Task SelectedMail(IDialogContext context, IAwaitable<object> result)
         {
             var message = await result as IMessageActivity;
+            if(!ContainsHTML(message.Text))
+            {
+                //context.Wait(this.MessageReceived);
+                context.Done(new object());
+                return;
+            }
             this.ForwardMessageBody = message.Text;
 
             await context.PostAsync("Whom you want to send selected mail ");
@@ -437,13 +454,19 @@
 
             var value = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
             List<UserEmailAddress> emailList = value.value;
+            if (emailList.Count == 0)
+            {
+                await context.PostAsync("No EMail ID found");
+                context.Wait(this.MessageReceived);
+                return;
+            }
             List<CardAction> Go = new List<CardAction>();
             foreach (var obj in emailList)
             {
 
                 CardAction Actioncard = new CardAction()
                 {
-                    Type =  ActionTypes.ImBack,
+                   // Type =  ActionTypes.ImBack,
                     Title = obj.userPrincipalName,
                     Text = obj.displayName,
                     Value = obj.userPrincipalName
@@ -460,10 +483,21 @@
             context.Wait(this.SendMailOnSelectedMail);
         }
 
+        bool IsValidEmail(string strIn)
+        {
+            // Return true if strIn is in valid e-mail format.
+            return Regex.IsMatch(strIn, @"^([\w-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([\w-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$");
+        }
+
         protected async Task SendMailOnSelectedMail(IDialogContext context, IAwaitable<object> result)
         {
             var message = await result as IMessageActivity;
 
+            if(String.IsNullOrEmpty(this.ForwardMessageBody) || !IsValidEmail(message.Text))
+            {
+                context.Done(new object());
+                return;
+            }
             GraphService emailService = new GraphService();
             MessageRequest emailMessageRequest = new MessageRequest();
             if (String.IsNullOrEmpty(this.ForwardMessageBody))

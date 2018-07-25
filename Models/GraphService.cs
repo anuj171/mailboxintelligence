@@ -233,26 +233,26 @@ namespace Graph.Models
             }
 
             // Get the current user's profile photo (or a test image if no profile photo exists).
-            using (Stream photo = await GetMyProfilePhoto(accessToken))
+           // using (Stream photo = await GetMyProfilePhoto(accessToken))
             {
                 // Add the photo as a file attachment for the email message.
-                byte[] photoBytes = null;
-                using (var memoryStream = new MemoryStream())
-                {
-                    photo?.CopyTo(memoryStream);
-                    photoBytes = memoryStream.ToArray();
-                }
+                //byte[] photoBytes = null;
+                //using (var memoryStream = new MemoryStream())
+                //{
+                //    photo?.CopyTo(memoryStream);
+                //    photoBytes = memoryStream.ToArray();
+                //}
 
-                List<Attachment> attachments = new List<Attachment>();
-                attachments.Add(new Attachment
-                {
-                    ODataType = "#microsoft.graph.fileAttachment",
-                    ContentBytes = photoBytes,
-                    Name = "mypic.jpg"
-                });
+                //List<Attachment> attachments = new List<Attachment>();
+                //attachments.Add(new Attachment
+                //{
+                //    ODataType = "#microsoft.graph.fileAttachment",
+                //    ContentBytes = photoBytes,
+                //    Name = "mypic.jpg"
+                //});
 
-                // Upload the photo to the user's root drive and then create a sharing link.
-                FileInfo file = await UploadFile(accessToken, photo);
+                //// Upload the photo to the user's root drive and then create a sharing link.
+                //FileInfo file = await UploadFile(accessToken, photo);
                 //file.SharingLink = await CreateSharingLinkForFile(accessToken, file);
 
                 // Add the sharing link to the email body.
@@ -267,8 +267,7 @@ namespace Graph.Models
                         ContentType = "HTML"
                     },
                     Subject = subject,
-                    ToRecipients = recipientList,
-                    Attachments = attachments
+                    ToRecipients = recipientList
                 };
 
                 return new MessageRequest
@@ -299,26 +298,26 @@ namespace Graph.Models
             }
 
             // Get the current user's profile photo (or a test image if no profile photo exists).
-            using (Stream photo = await GetMyProfilePhoto(accessToken))
+            //using (Stream photo = await GetMyProfilePhoto(accessToken))
             {
                 // Add the photo as a file attachment for the email message.
-                byte[] photoBytes = null;
-                using (var memoryStream = new MemoryStream())
-                {
-                    photo?.CopyTo(memoryStream);
-                    photoBytes = memoryStream.ToArray();
-                }
+                //byte[] photoBytes = null;
+                //using (var memoryStream = new MemoryStream())
+                //{
+                //    photo?.CopyTo(memoryStream);
+                //    photoBytes = memoryStream.ToArray();
+                //}
 
-                List<Attachment> attachments = new List<Attachment>();
-                attachments.Add(new Attachment
-                {
-                    ODataType = "#microsoft.graph.fileAttachment",
-                    ContentBytes = photoBytes,
-                    Name = "mypic.jpg"
-                });
+                //List<Attachment> attachments = new List<Attachment>();
+                //attachments.Add(new Attachment
+                //{
+                //    ODataType = "#microsoft.graph.fileAttachment",
+                //    ContentBytes = photoBytes,
+                //    Name = "mypic.jpg"
+                //});
 
-                // Upload the photo to the user's root drive and then create a sharing link.
-                FileInfo file = await UploadFile(accessToken, photo);
+                //// Upload the photo to the user's root drive and then create a sharing link.
+                //FileInfo file = await UploadFile(accessToken, photo);
                 //file.SharingLink = await CreateSharingLinkForFile(accessToken, file);
 
                 // Add the sharing link to the email body.
@@ -333,8 +332,7 @@ namespace Graph.Models
                         ContentType = "HTML"
                     },
                     Subject = subject,
-                    ToRecipients = recipientList,
-                    Attachments = attachments
+                    ToRecipients = recipientList
                 };
 
                 return new MessageRequest

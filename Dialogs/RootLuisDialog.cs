@@ -494,7 +494,7 @@
                     //Valid Email Provided in cotext Send Mail to that mail
                     GraphService emailService = new GraphService();
                     MessageRequest emailMessageRequest = new MessageRequest();
-                    emailMessageRequest = await emailService.BuildEmailMessage(Token, email, "Mail from Mailbox Intelligence Bot");
+                    emailMessageRequest = await emailService.BuildEmailMessage(Token, email, "Mail From Mailbox Intelligence Bot");
 
                     await context.PostAsync("Sending email to: " + email);
 
@@ -545,7 +545,7 @@
 
                         GraphService emailService = new GraphService();
                         MessageRequest emailMessageRequest = new MessageRequest();
-                        emailMessageRequest = await emailService.BuildEmailMessage(Token, emailList[0].userPrincipalName, "Test Mail from bot app");
+                        emailMessageRequest = await emailService.BuildEmailMessage(Token, emailList[0].userPrincipalName, "Mail From Mailbox Intelligence Bot");
                         string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
                         await context.PostAsync(resultMessage);
                         context.Wait(this.MessageReceived);

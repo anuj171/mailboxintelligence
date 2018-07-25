@@ -345,7 +345,7 @@ namespace Graph.Models
                                     .Filter(queryString)
 
                                     .Select("subject,receivedDateTime,from,body")
-                                    .Top(5)
+                                    .Top(3)
                                     .GetAsync().GetAwaiter().GetResult().CurrentPage.ToList<Microsoft.Graph.Message>();
                 mailResults = responseData.Select(e => new Message { Subject = e.Subject, Body = new ItemBody { Content = e.Body.Content, ContentType = e.Body.ContentType.ToString()} }).ToList<Message>();
                

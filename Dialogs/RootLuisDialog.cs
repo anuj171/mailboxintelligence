@@ -339,6 +339,10 @@
             if (result.TryFindEntity(From, out recommendation))
             {
                 query.From = recommendation.Entity;
+                if (query.From.Contains("@"))
+                {
+                    query.From = query.From.Replace(" ", "");
+                }
             }
 
             if (result.TryFindEntity(Email, out recommendation))
@@ -346,6 +350,7 @@
                 if (String.IsNullOrEmpty(query.From))
                 {
                     query.From = recommendation.Entity;
+                    query.From = query.From.Replace(" ", "");
                 }
             }
 
@@ -589,6 +594,7 @@
                     this.ForwardMessageBody = "";
                 }
 
+                await context.PostAsync("Sending email to: " + message.Text);
                 string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
                 await context.PostAsync(resultMessage);
                 context.Wait(this.MessageReceived);

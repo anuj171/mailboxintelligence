@@ -9,7 +9,9 @@
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using HtmlAgilityPack;
     using System.Web;
+    using AdaptiveCards;
     using Graph.Models;
     using Luis.Models;
     using Microsoft.Bot.Builder.Dialogs;
@@ -20,6 +22,7 @@
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
     using System.Text.RegularExpressions;
+    
 
     [LuisModel("493b6434-b844-4487-8d38-09d1319673f2", "6c18e9d8d7164409b9ffefba1a431416")]
     [Serializable]
@@ -228,24 +231,77 @@
             //context.Wait(this.MessageReceived);
         }
 
+        private static string HtmlToPlainText(string html)
+        {
+            const string tagWhiteSpace = @"(>|$)(\W|\n|\r)+<";//matches one or more (white space or line breaks) between '>' and '<'
+            const string stripFormatting = @"<[^>]*(>|$)";//match any character between '<' and '>', even when end tag is missing
+            const string lineBreak = @"<(br|BR)\s{0,1}\/{0,1}>";//matches: <br>,<br/>,<br />,<BR>,<BR/>,<BR />
+            var lineBreakRegex = new Regex(lineBreak, RegexOptions.Multiline);
+            var stripFormattingRegex = new Regex(stripFormatting, RegexOptions.Multiline);
+            var tagWhiteSpaceRegex = new Regex(tagWhiteSpace, RegexOptions.Multiline);
+
+            var text = html;
+            //Decode html specific characters
+            text = System.Net.WebUtility.HtmlDecode(text);
+            //Remove tag whitespace/line breaks
+            text = tagWhiteSpaceRegex.Replace(text, "><");
+            //Replace <br /> with line breaks
+            text = lineBreakRegex.Replace(text, Environment.NewLine);
+            //Strip formatting
+            text = stripFormattingRegex.Replace(text, string.Empty);
+
+            return text;
+        }
+
         public async Task PublishCards(IDialogContext context, IList<Message> msgs)
         {
  /*
             var resultMessage = context.MakeMessage();
+            //resultMessage.AddHeroCard<>();
+            
+           
             resultMessage.AttachmentLayout = AttachmentLayoutTypes.Carousel;
             resultMessage.Attachments = new List<Microsoft.Bot.Connector.Attachment>();
+            
             foreach (Message msg in msgs)
             {
-                ThumbnailCard thumbnailCard = new ThumbnailCard()
+                AdaptiveCards.AdaptiveCard thumbnailCard = new AdaptiveCards.AdaptiveCard();
+                thumbnailCard.AdditionalProperties.
+                //{
+                //    Title = msg.Subject,
+                //    Text = msg.Body.Content.ToString(),
+                //};
+                
+                var current = new AdaptiveColumnSet();
+                thumbnailCard.Body.Add(current);
+                var currentColumn = new AdaptiveColumn();
+                current.Columns.Add(currentColumn);
+                currentColumn.Width = "5";
+                currentColumn.
+                currentColumn.Items.Add(new AdaptiveTextBlock()
                 {
-                    Title = msg.Subject,
                     Text = msg.Body.Content.ToString(),
+                    Size = AdaptiveTextSize.Medium,
+                    HorizontalAlignment = AdaptiveHorizontalAlignment.Center,
+                    IsSubtle = false,
+                    Separation = AdaptiveSeparationStyle.None
+                });
+                
+                
+                Microsoft.Bot.Connector.Attachment attachment = new Microsoft.Bot.Connector.Attachment()
+                {
+                    ContentType = AdaptiveCard.ContentType,
+                    Content = thumbnailCard
                 };
-
-                resultMessage.Attachments.Add(thumbnailCard.ToAttachment());
+                //attachment.ContentType = AdaptiveCard.ContentType;
+                //attachment.Content = thumbnailCard;
+                //currentColumn.Ite;
+                //thumbnailCard.Body.Add()
+                resultMessage.Attachments.Add(attachment);
             }
-            await context.PostAsync(resultMessage);
- */
+            await context.PostAsync(resultMessage);*/
+ 
+ 
             if(msgs.Count == 0)
             {
                 await context.PostAsync("No Mail found");
@@ -258,12 +314,13 @@
             foreach (var obj in msgs)
             {
                 i++;
+                string txt = HtmlToPlainText(obj.Body.Content.ToString());
                 CardAction Actioncard = new CardAction()
                 {
                     Type = ActionTypes.ImBack,
-                    Title = obj.Subject,
-                    Text = obj.Subject,
-                    Value = obj.Body.Content.ToString()
+                    Title = obj.Subject.ToString(),
+                    Text = txt.Substring(0, 30),
+                    Value = txt.ToString()
 
                 };
 
@@ -274,12 +331,16 @@
                     break;
                 }
             }
-
-            HeroCard card = new HeroCard { Title = "Below Email found.", Buttons = Go };
-            var message = context.MakeMessage();
-            message.Attachments.Add(card.ToAttachment());
-            await context.PostAsync(message);
+            
+            HeroCard card = new HeroCard { Title = "Below1 Email found.", Buttons = Go};
+            
+            var resultMessage = context.MakeMessage();
+            resultMessage.AttachmentLayout = AttachmentLayoutTypes.Carousel;
+            resultMessage.Attachments = new List<Microsoft.Bot.Connector.Attachment>();
+            resultMessage.Attachments.Add(card.ToAttachment());
+            await context.PostAsync(resultMessage);
             context.Wait(this.SelectedMail);
+            
         }
 
         private bool ContainsHTML(string CheckString)

@@ -220,6 +220,12 @@
             }
             await context.PostAsync(resultMessage);
  */
+            if(msgs.Count == 0)
+            {
+                await context.PostAsync("No Mail found");
+                context.Wait(this.MessageReceived);
+                return;
+            }
 
             List<CardAction> Go = new List<CardAction>();
             var i = 0;
@@ -422,6 +428,12 @@
 
             var value = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
             List<UserEmailAddress> emailList = value.value;
+            if (emailList.Count == 0)
+            {
+                await context.PostAsync("No EMail ID found");
+                context.Wait(this.MessageReceived);
+                return;
+            }
             List<CardAction> Go = new List<CardAction>();
             foreach (var obj in emailList)
             {

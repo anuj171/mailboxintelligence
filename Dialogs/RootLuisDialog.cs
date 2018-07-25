@@ -329,7 +329,7 @@
 
         protected async Task SelectedMail(IDialogContext context, IAwaitable<object> result)
         {
-        try
+            try
             {
                 var message = await result as IMessageActivity;
                 if(!ContainsHTML(message.Text))
@@ -368,7 +368,7 @@
                 {
                     query.From = query.From.Replace(" ", "");
                 }
-            }
+
                 if (query.From.Contains("manager"))
                 {
                     query.From = this.UserManagerName;
@@ -398,7 +398,7 @@
                 {
                     query.To = query.To.Replace(" ", "");
                 }
-            }
+
                 if (query.To.Contains("manager"))
                 {
                     query.To = this.UserManagerName;
@@ -556,6 +556,10 @@
                         to = to.Replace(" ", "");
                     }
 
+                    if (to.Contains("manager"))
+                    {
+                        to = this.UserManagerName;
+                    }
 
                     var toekn = this.Token;
                     var client = new HttpClient();

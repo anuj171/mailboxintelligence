@@ -17,37 +17,15 @@ namespace LuisBot
         {
             var query = HttpUtility.ParseQueryString(this.Request.RequestUri.Query);
             string code = query.Get("code");
+            string dialogId = query.Get("state");
 
             if (!String.IsNullOrEmpty(code))
             {
-                RootLuisDialog.UpdateCodeAsync(code);
+                RootLuisDialog.UpdateCodeAsync(code, dialogId);
                 return "You are Signed In!";
             }
 
             return "Sign-in Failed!";
         }
-
-
-        //// GET api/<controller>/5
-        //public string Get(int id)
-        //{
-        //    return "value";
-        //}
-
-        // POST api/<controller>
-        [HttpPost]
-        public void Post([FromBody]string value)
-        {
-        }
-
-        //// PUT api/<controller>/5
-        //public void Put(int id, [FromBody]string value)
-        //{
-        //}
-
-        //// DELETE api/<controller>/5
-        //public void Delete(int id)
-        //{
-        //}
     }
 }

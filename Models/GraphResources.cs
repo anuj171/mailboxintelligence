@@ -5,6 +5,7 @@ using System.IO;
 
 namespace Graph.Models
 {
+    [Serializable]
     public class UserInfo
     {
         public string Name { get; set; }

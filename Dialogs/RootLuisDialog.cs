@@ -82,7 +82,7 @@
 
         internal string UserName { get; set; }
 
-        internal string UserManagerName { get; set; }
+        internal UserInfo UserManagerInfo { get; set; }
 
         internal string Token { get; set; }
 
@@ -382,7 +382,7 @@
 
                 if (query.From.Contains("manager"))
                 {
-                    query.From = this.UserManagerName;
+                    query.From = this.UserManagerInfo.Name;
                 }
             }
 
@@ -412,7 +412,7 @@
 
                 if (query.To.Contains("manager"))
                 {
-                    query.To = this.UserManagerName;
+                    query.To = this.UserManagerInfo.Name;
                 }
             }
 
@@ -569,8 +569,20 @@
 
                     if (to.Contains("manager"))
                     {
-                        to = this.UserManagerName;
+                        to = this.UserManagerInfo.Address;
+                        //Valid Email Provided in cotext Send Mail to that mail
+                        GraphService emailService = new GraphService();
+                        MessageRequest emailMessageRequest = new MessageRequest();
+                        emailMessageRequest = await emailService.BuildEmailMessage(Token, to, "Mail From Mailbox Intelligence Bot");
+
+                        await context.PostAsync("Sending email to: " + this.UserManagerInfo.Name);
+
+                        string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
+                        await context.PostAsync(resultMessage);
+                        context.Wait(this.MessageReceived);
+                        return;
                     }
+
 
                     var toekn = this.Token;
                     var client = new HttpClient();
@@ -587,7 +599,7 @@
                         await context.PostAsync("No EMail ID found");
                         context.Wait(this.MessageReceived);
                         return;
-                    } else if(emailList.Count == 1)
+                    } else if(emailList.Count == 1 || this.UserManagerInfo.Address != null)
                     {
                         //Only one Email ID found send Email
                         await context.PostAsync("Found Email id: " + emailList[0].userPrincipalName);
@@ -721,10 +733,10 @@
                     this.UserName = "";
                     this.UserName = await Service.GetMyName(this.Token);
                 }
-                if (this.UserManagerName == null)
+                if (this.UserManagerInfo == null || this.UserManagerInfo.Name == null || this.UserManagerInfo.Address == null)
                 {
-                    this.UserManagerName = "";
-                    this.UserManagerName = await Service.GetMyManagerName(this.Token);
+                    this.UserManagerInfo = new UserInfo();
+                    this.UserManagerInfo = await Service.GetMyManagerName(this.Token);
                 }
                 await context.PostAsync($"Hello {this.UserName}! Try asking me things like 'search email sent by Rahul yesterday' or 'find mail I sent to the team last week'");
 

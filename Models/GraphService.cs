@@ -397,12 +397,13 @@ namespace Graph.Models
                         {
                             if (response.IsSuccessStatusCode)
                             {
-                                var responseJson =  response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                                if (responseJson != null && JObject.Parse(responseJson)["values"] != null)
+                                var responseJson = JObject.Parse(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                              
+                                if (responseJson != null && responseJson.HasValues)
                                 {
-                                    var responsemessages = JsonConvert.DeserializeObject<List<Microsoft.Graph.Message>>(responseJson);
+                                   // var responsemessages = JsonConvert.DeserializeObject<List<Microsoft.Graph.Message>>(responseJson);
                                     // me.Name = !string.IsNullOrEmpty(json.GetValue("displayName").ToString()) ? json.GetValue("displayName").ToString() : json.GetValue("userPrincipalName").ToString();
-                                    mailResults = responsemessages.Select(e => new Message { Subject = e.Subject, Body = new ItemBody { Content = e.Body.Content, ContentType = e.Body.ContentType.ToString() } }).ToList<Message>();
+                                    mailResults = responseJson["value"].Select(e => new Message {Subject = e["subject"].ToString(), Body = new ItemBody { Content = e["body"]["content"].ToString(), ContentType = e["body"]["contentType"].ToString() } }).ToList<Message>();
                                 }
                             }
                             //return me.Name?.Trim();

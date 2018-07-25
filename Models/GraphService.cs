@@ -379,7 +379,7 @@ namespace Graph.Models
                                     .Filter(queryString)
 
                                     .Select("subject,receivedDateTime,from,body")
-                                    .Top(5)
+                                    .Top(3)
                                     .GetAsync().GetAwaiter().GetResult().CurrentPage.ToList<Microsoft.Graph.Message>();
                 mailResults = responseData.Select(e => new Message { Subject = e.Subject, Body = new ItemBody { Content = e.Body.Content, ContentType = e.Body.ContentType.ToString()} }).ToList<Message>();
                
@@ -419,7 +419,7 @@ namespace Graph.Models
             try { 
                 using (var client = new HttpClient())
                 {
-                    using (var request = new HttpRequestMessage(HttpMethod.Get, endpoint + "\"" + queryString + "\"" + "&$count=true" + "&$top=5" + "&$select=subject,receivedDateTime,from,body"))
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, endpoint + "\"" + queryString + "\"" + "&$count=true" + "&$top=3" + "&$select=subject,receivedDateTime,from,body"))
                     {
                         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);

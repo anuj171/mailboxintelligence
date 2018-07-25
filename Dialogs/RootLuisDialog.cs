@@ -192,7 +192,7 @@
             {
                 reply = $"Searching for: '{query.ToString()}'";
             }
-             IList<Message> mails = Service.searchMails(Token, query);
+             IList<Message> mails = Service.searchMailsRestApi(Token, query);
 
             await PublishCards(context, mails);
 

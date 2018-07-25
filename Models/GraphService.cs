@@ -361,6 +361,64 @@ namespace Graph.Models
             }
             return mailResults;
         }
+        public List<Message> searchMailsRestApi(string accessToken, SearchQuery query)
+        {
+            string queryString = string.Empty;
+            if (String.IsNullOrEmpty(query.Date))
+            {
+                queryString += (String.IsNullOrEmpty(query.TimeStart) ? "received>2000-01-01" : "received>=" + query.TimeStart);
+                queryString += (String.IsNullOrEmpty(query.TimeEnd) ? "" : " received<=" + query.TimeEnd);
+
+            }
+            else
+            {
+                queryString += "received>" + ((DateTime.Parse(query.Date)).AddDays(-1)).ToString("yyyy-MM-dd");
+                queryString += " received<" + ((DateTime.Parse(query.Date)).AddDays(1)).ToString("yyyy-MM-dd");
+                //queryString = "receivedDateTime eq '" + query.Date + "'";
+            }
+            queryString += (String.IsNullOrEmpty(query.From) ? "" : " from:" + query.From );
+            queryString += (String.IsNullOrEmpty(query.Content) ? "" : " " + query.Content );
+           
+            string endpoint = "https://graph.microsoft.com/v1.0/me/messages?$search=";
+            UserInfo me = new UserInfo();
+            var mailResults = new List<Message>();
+            try { 
+                using (var client = new HttpClient())
+                {
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, endpoint + "\"" + queryString + "\"" + "&$count=true" + "&$top=5" + "&$select=subject,receivedDateTime,from,body"))
+                    {
+                        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+                        // This header has been added to identify our sample in the Microsoft Graph service. If extracting this code for your project please remove.
+                        //request.Headers.Add("SampleID", "aspnet-connect-rest-sample");
+
+                        using (var response = client.SendAsync(request).GetAwaiter().GetResult())
+                        {
+                            if (response.IsSuccessStatusCode)
+                            {
+                                var responseJson = JObject.Parse(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                              
+                                if (responseJson != null && responseJson.HasValues)
+                                {
+                                   // var responsemessages = JsonConvert.DeserializeObject<List<Microsoft.Graph.Message>>(responseJson);
+                                    // me.Name = !string.IsNullOrEmpty(json.GetValue("displayName").ToString()) ? json.GetValue("displayName").ToString() : json.GetValue("userPrincipalName").ToString();
+                                    mailResults = responseJson["value"].Select(e => new Message {Subject = e["subject"].ToString(), Body = new ItemBody { Content = e["body"]["content"].ToString(), ContentType = e["body"]["contentType"].ToString() } }).ToList<Message>();
+                                }
+                            }
+                            //return me.Name?.Trim();
+                        }
+                    }
+                }
+                
+            }
+            catch (Exception ex)
+            {
+                //TODO
+                throw ex;
+            }
+            return mailResults;
+        }
 
     }
 }

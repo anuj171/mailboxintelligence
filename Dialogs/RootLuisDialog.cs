@@ -235,7 +235,7 @@
 
                     IList<Message> mails = new List<Message>();
 
-                    mails = Service.searchMails(Token, query);
+                    mails = Service.searchMailsRestApi(Token, query);
 
                     await PublishCards(context, mails);
                 }

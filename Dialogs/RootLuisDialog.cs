@@ -19,6 +19,7 @@
     using Microsoft.Bot.Connector;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
+    using System.Text.RegularExpressions;
 
     [LuisModel("493b6434-b844-4487-8d38-09d1319673f2", "6c18e9d8d7164409b9ffefba1a431416")]
     [Serializable]
@@ -262,6 +263,13 @@
 
         public async Task PublishCards(IDialogContext context, IList<Message> msgs)
         {
+            if(msgs.Count == 0)
+            {
+                await context.PostAsync("No Mail found");
+                context.Wait(this.MessageReceived);
+                return;
+            }
+
             List<CardAction> Go = new List<CardAction>();
             var i = 0;
             foreach (var obj in msgs)
@@ -290,12 +298,22 @@
             await context.PostAsync(message);
             context.Wait(this.SelectedMail);
         }
-
-        protected async Task SelectedMail(IDialogContext context, IAwaitable<IMessageActivity> activity)
+        private bool ContainsHTML(string CheckString)
         {
-            try
+            return Regex.IsMatch(CheckString, "<(.|\n)*?>");
+        }
+
+        protected async Task SelectedMail(IDialogContext context, IAwaitable<object> result)
+        {
+        try
             {
-                var message = await activity;
+                var message = await result as IMessageActivity;
+                if(!ContainsHTML(message.Text))
+                {
+                    await context.PostAsync("Did not found correct selection. Please try again! ");
+                    context.Wait(this.MessageReceived);
+                    return;
+                }
                 this.ForwardMessageBody = message.Text;
 
                 await context.PostAsync("Whom you want to send selected mail ");
@@ -455,6 +473,19 @@
                     return;
                 }
 
+                if(IsValidEmail(result.Entities[0].Entity))
+                {
+                    //Valid Email Provided in cotext Send Mail to that mail
+                    GraphService emailService = new GraphService();
+                    MessageRequest emailMessageRequest = new MessageRequest();
+                    emailMessageRequest = await emailService.BuildEmailMessage(Token, result.Entities[0].Entity, "Test Mail from bot app");
+                    string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
+                    await context.PostAsync(resultMessage);
+                    context.Wait(this.MessageReceived);
+
+                    return;
+                }
+
                 var toekn = this.Token;
                 var client = new HttpClient();
                 client.DefaultRequestHeaders.Add("Accept", "application/json");
@@ -465,20 +496,39 @@
 
                 var value = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
                 List<UserEmailAddress> emailList = value.value;
+                if (emailList.Count == 0)
+                {
+                    await context.PostAsync("No EMail ID found");
+                    context.Wait(this.MessageReceived);
+                    return;
+                } else if(emailList.Count == 1)
+                {
+                    //Only one Email ID found send Email
+                    await context.PostAsync("Found Email id: " + emailList[0].userPrincipalName);
+                    await context.PostAsync("Sending Email To: " + emailList[0].userPrincipalName);
+
+                    GraphService emailService = new GraphService();
+                    MessageRequest emailMessageRequest = new MessageRequest();
+                    emailMessageRequest = await emailService.BuildEmailMessage(Token, emailList[0].userPrincipalName, "Test Mail from bot app");
+                    string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
+                    await context.PostAsync(resultMessage);
+                    context.Wait(this.MessageReceived);
+
+                    return;
+                }
                 List<CardAction> Go = new List<CardAction>();
                 foreach (var obj in emailList)
                 {
 
-                    CardAction Actioncard = new CardAction()
-                    {
-                        Type =  ActionTypes.ImBack,
-                        Title = obj.userPrincipalName,
-                        Text = obj.displayName,
-                        Value = obj.userPrincipalName
+                        CardAction Actioncard = new CardAction()
+                        {
+                            // Type =  ActionTypes.ImBack,
+                            Title = obj.userPrincipalName,
+                            Text = obj.displayName,
+                            Value = obj.userPrincipalName
 
-                    };
-
-                    Go.Add(Actioncard);
+                        };
+                        Go.Add(Actioncard);
                 }
 
                 HeroCard card = new HeroCard { Title = "Below Email ID found. Please choose whom to send Email", Buttons = Go };
@@ -507,12 +557,26 @@
             }
         }
 
+        bool IsValidEmail(string strIn)
+        {
+            // Return true if strIn is in valid e-mail format.
+            return Regex.IsMatch(strIn, @"^([\w-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([\w-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$");
+        }
+
         protected async Task SendMailOnSelectedMail(IDialogContext context, IAwaitable<object> result)
         {
+
             try
-            {
+            { 
                 var message = await result as IMessageActivity;
 
+                if(String.IsNullOrEmpty(this.ForwardMessageBody) || !IsValidEmail(message.Text))
+                {
+                    await context.PostAsync("Did not found correct selection. Please try again! ");
+                    context.Wait(this.MessageReceived);
+                    //context.Done(new object());
+                    return;
+                }
                 GraphService emailService = new GraphService();
                 MessageRequest emailMessageRequest = new MessageRequest();
                 if (String.IsNullOrEmpty(this.ForwardMessageBody))
@@ -525,11 +589,10 @@
                     this.ForwardMessageBody = "";
                 }
 
-
                 string resultMessage = await emailService.SendEmail(Token, emailMessageRequest);
                 await context.PostAsync(resultMessage);
                 context.Wait(this.MessageReceived);
-                context.Done(new object());
+                
             }
             catch (Exception e)
             {

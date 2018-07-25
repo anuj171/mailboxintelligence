@@ -38,7 +38,6 @@
         private const string DateTimeRange = "builtin.datetimeV2.datetimerange";
         private const string Email = "builtin.email";
 
-        private static int sCurrentDialogID = 0;
         private static Dictionary<string, string> sDialogIdToCodeMap = new Dictionary<string, string>();
         private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={2}&response_type=code&redirect_uri={1}%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send%20People.Read&state={0}";
         private static string sPostBody = "grant_type=authorization_code&client_id={3}&code={0}&redirect_uri={2}%2Fapi%2FOAuthCallBack&resource=https%3A%2F%2Fgraph.microsoft.com%2F&client_secret={1}";

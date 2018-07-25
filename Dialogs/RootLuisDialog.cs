@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Configuration;
     using System.Linq;
     using System.Net.Http;
     using System.Net.Http.Headers;
@@ -18,6 +19,7 @@
     using Microsoft.Bot.Connector;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
+    using System.Text.RegularExpressions;
 
     [LuisModel("493b6434-b844-4487-8d38-09d1319673f2", "6c18e9d8d7164409b9ffefba1a431416")]
     [Serializable]
@@ -36,24 +38,27 @@
         private const string DateTimeRange = "builtin.datetimeV2.datetimerange";
         private const string Email = "builtin.email";
 
-        // private IList<string> titleOptions = new List<string> { "“Very stylish, great stay, great staff”", "“good hotel awful meals”", "“Need more attention to little things”", "“Lovely small hotel ideally situated to explore the area.”", "“Positive surprise”", "“Beautiful suite and resort”" };
-
         private static int sCurrentDialogID = 0;
         private static Dictionary<int, string> sDialogIdToCodeMap = new Dictionary<int, string>();
-        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=9cd99965-da20-4039-8e68-510d35bee7e2&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send%20People.Read&state={0}";
-        private static string sPostBody = "grant_type=authorization_code&client_id=9cd99965-da20-4039-8e68-510d35bee7e2&code={0}&redirect_uri=http%3A%2F%2Flocalhost%3A3979%2Fapi%2FOAuthCallBack&resource=https%3A%2F%2Fgraph.microsoft.com%2F&client_secret={1}";
+        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={2}&response_type=code&redirect_uri={1}%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send%20People.Read&state={0}";
+        private static string sPostBody = "grant_type=authorization_code&client_id={3}&code={0}&redirect_uri={2}%2Fapi%2FOAuthCallBack&resource=https%3A%2F%2Fgraph.microsoft.com%2F&client_secret={1}";
         private static string sPostUrl = "https://login.microsoftonline.com/common/oauth2/token";
-        private static string sClientSecret = "nlgKLCM17536*%fonsCFT*#";
 
-        private int DialogId;
+        private string Host = ConfigurationManager.AppSettings["Host"];
+        private string ClientId = ConfigurationManager.AppSettings["MicrosoftAppId"];
+        private string AppSecret = ConfigurationManager.AppSettings["MicrosoftAppPassword"];
+
+        private int DialogId = 0;
 
         private GraphService Service =  new GraphService();
 
         internal static void UpdateCodeAsync(string code)
         {
-            sDialogIdToCodeMap.Add(sCurrentDialogID, code);
+            if (!sDialogIdToCodeMap.ContainsKey(sCurrentDialogID))
+            {
+                sDialogIdToCodeMap.Add(sCurrentDialogID, code);
+            }
         }
-
 
         internal bool IsSignedIn {
             get
@@ -99,7 +104,7 @@
                 {
                     request.Headers.Add("Host", "login.microsoftonline.com");
 
-                    string content = String.Format(sPostBody, this.Code, Uri.EscapeDataString(sClientSecret));
+                    string content = String.Format(sPostBody, this.Code, Uri.EscapeDataString(this.AppSecret), Uri.EscapeDataString(this.Host), this.ClientId);
 
                     request.Content = new StringContent(content, Encoding.UTF8, "application/x-www-form-urlencoded");
 
@@ -121,7 +126,19 @@
         {
             if (!IsSignedIn)
             {
-                var card = SigninCard.Create("Please Sign In To Continue...", "Sign In", String.Format(sLoginUrl, DialogId));
+                CardAction signInAction = new CardAction()
+                {
+                    Type = "openUrl",
+                    Title = "Sign In",
+                    Value = String.Format(sLoginUrl, DialogId, Uri.EscapeDataString(this.Host), this.ClientId)
+                };
+
+                HeroCard card = new HeroCard()
+                {
+                    Title = "Sign In",
+                    Subtitle = "Tap/Click here to Sign In...",                    
+                    Tap = signInAction
+                };
 
                 var resultMessage = context.MakeMessage();
                 resultMessage.Attachments.Add(card.ToAttachment());
@@ -192,11 +209,21 @@
             {
                 reply = $"Searching for: '{query.ToString()}'";
             }
-             IList<Message> mails = Service.searchMailsRestApi(Token, query);
+
+            await context.PostAsync(reply);
+
+            IList<Message> mails = new List<Message>();
+            try
+            {
+                mails = Service.searchMailsRestApi(Token, query);
+            }
+            catch (Exception e)
+            {
+                await context.PostAsync(e.Message);
+                await context.PostAsync(e.StackTrace);
+            }
 
             await PublishCards(context, mails);
-
-            //await context.PostAsync(reply);
 
             //context.Wait(this.MessageReceived);
         }
@@ -219,6 +246,12 @@
             }
             await context.PostAsync(resultMessage);
  */
+            if(msgs.Count == 0)
+            {
+                await context.PostAsync("No Mail found");
+                context.Wait(this.MessageReceived);
+                return;
+            }
 
             List<CardAction> Go = new List<CardAction>();
             var i = 0;
@@ -249,9 +282,19 @@
             context.Wait(this.SelectedMail);
         }
 
+        private bool ContainsHTML(string CheckString)
+        {
+            return Regex.IsMatch(CheckString, "<(.|\n)*?>");
+        }
         protected async Task SelectedMail(IDialogContext context, IAwaitable<object> result)
         {
             var message = await result as IMessageActivity;
+            if(!ContainsHTML(message.Text))
+            {
+                //context.Wait(this.MessageReceived);
+                context.Done(new object());
+                return;
+            }
             this.ForwardMessageBody = message.Text;
 
             await context.PostAsync("Whom you want to send selected mail ");
@@ -411,13 +454,19 @@
 
             var value = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
             List<UserEmailAddress> emailList = value.value;
+            if (emailList.Count == 0)
+            {
+                await context.PostAsync("No EMail ID found");
+                context.Wait(this.MessageReceived);
+                return;
+            }
             List<CardAction> Go = new List<CardAction>();
             foreach (var obj in emailList)
             {
 
                 CardAction Actioncard = new CardAction()
                 {
-                    Type =  ActionTypes.ImBack,
+                   // Type =  ActionTypes.ImBack,
                     Title = obj.userPrincipalName,
                     Text = obj.displayName,
                     Value = obj.userPrincipalName
@@ -434,10 +483,21 @@
             context.Wait(this.SendMailOnSelectedMail);
         }
 
+        bool IsValidEmail(string strIn)
+        {
+            // Return true if strIn is in valid e-mail format.
+            return Regex.IsMatch(strIn, @"^([\w-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([\w-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$");
+        }
+
         protected async Task SendMailOnSelectedMail(IDialogContext context, IAwaitable<object> result)
         {
             var message = await result as IMessageActivity;
 
+            if(String.IsNullOrEmpty(this.ForwardMessageBody) || !IsValidEmail(message.Text))
+            {
+                context.Done(new object());
+                return;
+            }
             GraphService emailService = new GraphService();
             MessageRequest emailMessageRequest = new MessageRequest();
             if (String.IsNullOrEmpty(this.ForwardMessageBody))

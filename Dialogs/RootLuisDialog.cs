@@ -46,6 +46,7 @@
         private string Host = ConfigurationManager.AppSettings["Host"];
         private string ClientId = ConfigurationManager.AppSettings["MicrosoftAppId"];
         private string AppSecret = ConfigurationManager.AppSettings["MicrosoftAppPassword"];
+        string[] messages = new string[5];
 
         private string DialogId;
 
@@ -290,21 +291,24 @@
                 context.Wait(this.MessageReceived);
                 return;
             }
-
+            
             List<CardAction> Go = new List<CardAction>();
             var i = 0;
             foreach (var obj in msgs)
             {
                 i++;
                 string txt = HtmlToPlainText(obj.Body.Content.ToString());
+                messages[i - 1] = obj.Body.Content.ToString();
                 CardAction Actioncard = new CardAction()
                 {
                     Type = ActionTypes.ImBack,
                     Title = obj.Subject,
                     Text = obj.Subject,
-                    Value = txt
+                    Value = "Message Selected " + i
 
                 };
+                
+
 
                 Go.Add(Actioncard);
                 if(i == 5)
@@ -330,16 +334,23 @@
         try
             {
                 var message = await result as IMessageActivity;
-                if(!ContainsHTML(message.Text))
+                string prefix = "Message Selected ";
+                if (message.Text.StartsWith(prefix)) { 
+                    int i = Convert.ToInt32(message.Text.Substring(prefix.Length));
+                    this.ForwardMessageBody = messages[i].Trim().Substring(0,250);
+
+                    await context.PostAsync("Whom you want to send selected mail ");
+                    context.Wait(this.MessageReceived);
+
+                }
+                else
                 {
                     await context.PostAsync("Did not found correct selection. Please try again! ");
                     context.Wait(this.MessageReceived);
                     return;
                 }
-                this.ForwardMessageBody = message.Text;
 
-                await context.PostAsync("Whom you want to send selected mail ");
-                context.Wait(this.MessageReceived);
+
             }
             catch (Exception e)
             {

@@ -40,7 +40,7 @@
 
         private static int sCurrentDialogID = 0;
         private static Dictionary<string, string> sDialogIdToCodeMap = new Dictionary<string, string>();
-        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={2}&response_type=code&redirect_uri={1}%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send%20People.Read&state={0}";
+        private static string sLoginUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={2}&response_type=code&redirect_uri={1}%2Fapi%2FOAuthCallBack&response_mode=query&scope=offline_access%20user.read%20mail.read%20mail.send%20people.read%20directory.read.all&state={0}";
         private static string sPostBody = "grant_type=authorization_code&client_id={3}&code={0}&redirect_uri={2}%2Fapi%2FOAuthCallBack&resource=https%3A%2F%2Fgraph.microsoft.com%2F&client_secret={1}";
         private static string sPostUrl = "https://login.microsoftonline.com/common/oauth2/token";
 
@@ -81,6 +81,8 @@
         }
 
         internal string UserName { get; set; }
+
+        internal string UserManagerName { get; set; }
 
         internal string Token { get; set; }
 
@@ -336,9 +338,14 @@
                 query.Content = recommendation.Entity;
             }
 
+
             if (result.TryFindEntity(From, out recommendation))
             {
                 query.From = recommendation.Entity;
+                if (query.From.Contains("manager"))
+                {
+                    query.From = this.UserManagerName;
+                }
             }
 
             if (result.TryFindEntity(Email, out recommendation))
@@ -357,6 +364,10 @@
                     query.To.Equals("myself", StringComparison.InvariantCultureIgnoreCase))
                 {
                     query.To = this.UserName;
+                }
+                if (query.To.Contains("manager"))
+                {
+                    query.To = this.UserManagerName;
                 }
             }
 
@@ -628,7 +639,11 @@
                     this.UserName = "";
                     this.UserName = await Service.GetMyName(this.Token);
                 }
-
+                if (this.UserManagerName == null)
+                {
+                    this.UserManagerName = "";
+                    this.UserManagerName = await Service.GetMyManagerName(this.Token);
+                }
                 await context.PostAsync($"Hello {this.UserName}! Try asking me things like 'search email sent by Rahul yesterday' or 'find mail I sent to the team last week'");
 
                 context.Wait(this.MessageReceived);

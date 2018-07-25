@@ -63,6 +63,40 @@ namespace Graph.Models
                 }
             }
         }
+        // Get the current user's manager name from their profile.
+        public async Task<string> GetMyManagerName(string accessToken)
+        {
+
+            // Get the current user. 
+            // The app only needs the user's email address, so select the mail and userPrincipalName properties.
+            // If the mail property isn't defined, userPrincipalName should map to the email for all account types. 
+            string endpoint = "https://graph.microsoft.com/v1.0/me/manager";
+            string queryParameter = "?$select=mail,userPrincipalName,displayName";
+            UserInfo me = new UserInfo();
+
+            using (var client = new HttpClient())
+            {
+                using (var request = new HttpRequestMessage(HttpMethod.Get, endpoint + queryParameter))
+                {
+                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+                    // This header has been added to identify our sample in the Microsoft Graph service. If extracting this code for your project please remove.
+                    //request.Headers.Add("SampleID", "aspnet-connect-rest-sample");
+
+                    using (var response = await client.SendAsync(request))
+                    {
+                        if (response.IsSuccessStatusCode)
+                        {
+                            var json = JObject.Parse(await response.Content.ReadAsStringAsync());
+                            me.Name = !string.IsNullOrEmpty(json.GetValue("displayName").ToString()) ? json.GetValue("displayName").ToString() : json.GetValue("userPrincipalName").ToString();
+                        }
+                        return me.Name?.Trim();
+                    }
+                }
+            }
+        }
+
 
         // Get the current user's profile photo.
         public async Task<Stream> GetMyProfilePhoto(string accessToken)

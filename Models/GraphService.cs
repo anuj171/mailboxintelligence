@@ -385,7 +385,7 @@ namespace Graph.Models
             try { 
                 using (var client = new HttpClient())
                 {
-                    using (var request = new HttpRequestMessage(HttpMethod.Get, endpoint + "\"" + queryString + "\"" + "&$count=true" + "&$top=5" + "&$select=subject,receivedDateTime,from,body"))
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, endpoint + "\"" + queryString + "\"" + "&$count=true" + "&$top=3" + "&$select=subject,receivedDateTime,from,body"))
                     {
                         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);

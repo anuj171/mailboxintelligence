@@ -21,7 +21,7 @@
     using Newtonsoft.Json.Linq;
     using System.Text.RegularExpressions;
 
-    [LuisModel("493b6434-b844-4487-8d38-09d1319673f2", "6c18e9d8d7164409b9ffefba1a431416")]
+    [LuisModel("d341147b-6e3d-4497-adb7-d942fc9a35e7", "0358cd7fbc8a45a4b302788c4a3dfb5f")]
     [Serializable]
     public class RootLuisDialog : LuisDialog<object>
     {
@@ -307,10 +307,7 @@
                     Title = obj.Subject,
                     Text = obj.Subject,
                     Value = "Message Selected " + i
-
                 };
-                
-
 
                 Go.Add(Actioncard);
                 if(i == 5)

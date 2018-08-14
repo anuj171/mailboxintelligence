@@ -336,7 +336,7 @@
                 string prefix = "Message Selected ";
                 if (message.Text.StartsWith(prefix)) { 
                     int i = Convert.ToInt32(message.Text.Substring(prefix.Length));
-                    this.ForwardMessageBody = messages[i].Trim().Substring(0,250);
+                    this.ForwardMessageBody = messages[i-1].Trim().Substring(0,250);
 
                     await context.PostAsync("Whom you want to send selected mail ");
                     context.Wait(this.MessageReceived);
@@ -377,7 +377,7 @@
                     query.From = query.From.Replace(" ", "");
                 }
 
-                if (query.From.Contains("manager"))
+                if (query.From.Contains("manager") && this.UserManagerInfo != null)
                 {
                     query.From = this.UserManagerInfo.Name;
                 }
@@ -407,7 +407,7 @@
                     query.To = query.To.Replace(" ", "");
                 }
 
-                if (query.To.Contains("manager"))
+                if (query.To.Contains("manager") && this.UserManagerInfo != null)
                 {
                     query.To = this.UserManagerInfo.Name;
                 }
@@ -573,7 +573,7 @@
                         to = to.Replace(" ", "");
                     }
 
-                    if (to.Contains("manager"))
+                    if (to.Contains("manager") && this.UserManagerInfo != null)
                     {
                         to = this.UserManagerInfo.Address;
                         //Valid Email Provided in cotext Send Mail to that mail

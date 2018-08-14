@@ -64,7 +64,7 @@ namespace Graph.Models
             }
         }
         // Get the current user's manager name from their profile.
-        public async Task<string> GetMyManagerName(string accessToken)
+        public async Task<UserInfo> GetMyManagerName(string accessToken)
         {
 
             // Get the current user. 
@@ -72,6 +72,7 @@ namespace Graph.Models
             // If the mail property isn't defined, userPrincipalName should map to the email for all account types. 
             string endpoint = "https://graph.microsoft.com/v1.0/me/manager";
             string queryParameter = "?$select=mail,userPrincipalName,displayName";
+
             UserInfo me = new UserInfo();
 
             using (var client = new HttpClient())
@@ -90,8 +91,9 @@ namespace Graph.Models
                         {
                             var json = JObject.Parse(await response.Content.ReadAsStringAsync());
                             me.Name = !string.IsNullOrEmpty(json.GetValue("displayName").ToString()) ? json.GetValue("displayName").ToString() : json.GetValue("userPrincipalName").ToString();
+                            me.Address = json.GetValue("userPrincipalName").ToString();
                         }
-                        return me.Name?.Trim();
+                        return me;
                     }
                 }
             }

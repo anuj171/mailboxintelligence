@@ -227,6 +227,7 @@
                 if (query.IsEmpty())
                 {
                     reply = $"Sorry, I did not understand '{result.Query}'. Please be more specific.";
+                    await context.PostAsync(reply);
                     context.Wait(this.MessageReceived);
                 }
                 else
@@ -336,7 +337,7 @@
                 string prefix = "Message Selected ";
                 if (message.Text.StartsWith(prefix)) { 
                     int i = Convert.ToInt32(message.Text.Substring(prefix.Length));
-                    this.ForwardMessageBody = messages[i-1].Trim().Substring(0,250);
+                    this.ForwardMessageBody = messages[i-1];
 
                     await context.PostAsync("Whom you want to send selected mail ");
                     context.Wait(this.MessageReceived);
@@ -605,7 +606,7 @@
                         await context.PostAsync("No EMail ID found");
                         context.Wait(this.MessageReceived);
                         return;
-                    } else if(emailList.Count == 1 || this.UserManagerInfo.Address != null)
+                    } else if(emailList.Count == 1)
                     {
                         //Only one Email ID found send Email
                         await context.PostAsync("Found Email id: " + emailList[0].userPrincipalName);
